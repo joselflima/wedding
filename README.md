@@ -1,48 +1,87 @@
 # Wedding
 
-Wedding é uma aplicação pessoal para apoiar o planejamento do casamento do autor com sua noiva. O projeto é voltado a um único casamento.
+Aplicação pessoal para planejar um único casamento, com uma lista de convidados compartilhada pelos dois noivos.
 
-## Estado atual
+## Disponível
 
-O projeto está na fase de planejamento inicial. Ainda não há funcionalidades, aplicação ou infraestrutura implementadas neste repositório.
+- Login com usuário e senha e logout por POST.
+- Lista de convidados exclusiva dos noivos, com cadastro, edição, exclusão confirmada, busca por nome ou telefone, ordenação alfabética e paginação de 25 registros.
+- Total geral e quantidade de resultados da busca; estados vazio, sem resultados e mensagens de sucesso.
+- Nome obrigatório (200 caracteres), telefone opcional (30) e observações opcionais (2.000). Cada registro representa uma pessoa; nomes repetidos são permitidos. Cadastrar convidados não cria contas.
+- Layout responsivo em português: tabela no desktop e cartões no celular.
+- No máximo dois usuários com perfil Noivos em todo o banco, garantidos por restrições `UNIQUE` e `CHECK`, inclusive em gravações concorrentes. Contas inativas continuam ocupando sua vaga.
+- Comando explícito para criar um noivo de demonstração, sem privilégios administrativos ou convidados fictícios.
 
-## Perfis previstos
+Perfis Convidados e Padrinhos existem apenas para autorização; suas funcionalidades e a lista de padrinhos permanecem planejadas. Cadastro público, recuperação de senha, gestão de vagas pela interface e implantação na VPS Hostinger não fazem parte desta versão.
 
-- **Noivos:** foco da primeira etapa, com acesso às ferramentas de planejamento.
-- **Convidados:** perfil previsto, com funcionalidades a definir posteriormente.
-- **Padrinhos:** perfil previsto, com funcionalidades a definir posteriormente.
+## Stack
 
-## Escopo inicial
+Python 3.13, Django 5.2.19 LTS, mysqlclient 2.3.0 e MySQL 8.4. Dependências Python diretas e transitivas estão fixadas em `requirements.txt`. Templates Django e CSS próprio, sem build de frontend. Docker Compose mantém aplicação e banco separados; o MySQL usa volume persistente e não publica porta no host.
 
-A primeira etapa de implementação será dedicada à visão dos noivos, começando por:
+## Execução local
 
-- Lista de convidados.
-- Lista de padrinhos.
+Pré-requisitos: Docker Desktop/Engine em execução, Docker Compose v2 e Python 3 para gerar a configuração local.
 
-As duas listas estarão disponíveis exclusivamente para os noivos. Essa restrição deverá ser aplicada no backend Django e refletida na interface.
+```sh
+python3 scripts/init_env.py
+docker compose up -d db
+docker compose build web
+docker compose run --rm web python manage.py migrate
+docker compose run --rm web python manage.py provision_demo
+docker compose up -d web
+```
 
-Cadastrar alguém em uma lista não implica criar uma conta de acesso. A relação entre os registros das listas e os perfis de acesso será definida posteriormente.
+No macOS, caso o Docker informe que `docker-credential-desktop` não foi encontrado, inclua seus utilitários no PATH com `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"` e repita o comando.
 
-## Arquitetura prevista
+Abra [http://localhost:8000](http://localhost:8000). Use `DEMO_USERNAME` e `DEMO_PASSWORD` do seu `.env`; o login padrão é `noivo_demo` e a senha é gerada individualmente. O arquivo não é versionado. A lista começa vazia.
 
-- **Django:** framework da aplicação.
-- **MySQL:** banco de dados principal.
-- **Docker:** execução da aplicação e do banco em serviços separados.
-- **Docker Compose:** orquestração dos serviços no ambiente local e na futura implantação.
-- **VPS da Hostinger:** destino previsto para hospedagem.
+O gerador nunca substitui um `.env` existente. Alternativamente, copie `.env.example` para `.env` e preencha os segredos. Configure `APP_PORT` para mudar a porta local e `DJANGO_ALLOWED_HOSTS` se necessário. O Compose espera a saúde do MySQL antes de executar a aplicação.
 
-As configurações serão fornecidas por variáveis de ambiente, sem credenciais versionadas. A persistência utilizará migrations do Django e armazenamento persistente para o MySQL.
+O provisionamento usa hash de senha do Django, valida a senha e ocupa a primeira vaga disponível. Reexecuções com o mesmo usuário de demonstração não alteram senha ou dados existentes. Login de outra conta, demonstração inativa ou duas vagas ocupadas geram erro. Alterar `DEMO_PASSWORD` no `.env` depois do provisionamento não muda a senha já cadastrada; use o comando interativo `docker compose run --rm web python manage.py changepassword noivo_demo` quando necessário.
 
-Versões das dependências, autenticação e detalhes de implantação ainda serão definidos. Instruções de instalação e execução serão adicionadas quando a configuração correspondente existir.
+A aplicação usa `runserver` e está publicada apenas em `127.0.0.1` para desenvolvimento. A implantação na VPS terá uma etapa própria para servidor de aplicação, HTTPS, estáticos e configuração de produção. Fora de debug, os cookies de sessão e CSRF exigem HTTPS.
 
-## Próximas etapas
+## Verificação
 
-1. Detalhar os fluxos de planejamento da visão dos noivos.
-2. Definir os dados e as operações das listas de convidados e padrinhos.
-3. Planejar a autenticação e as regras de autorização.
-4. Preparar a estrutura técnica com Django, MySQL e Docker Compose.
-5. Implementar as listas e testar as restrições de acesso.
+A suíte de aceitação roda no MySQL 8.4. O comando abaixo usa o usuário root somente para criar e remover o banco isolado `test_wedding`; o servidor da aplicação usa o usuário restrito `wedding`. Caso personalize `MYSQL_DATABASE`, o banco de teste recebe o prefixo `test_`.
 
-## Orientações para contribuição
+```sh
+docker compose run --rm web python manage.py check
+docker compose run --rm web python manage.py makemigrations --check --dry-run
+docker compose run --rm web sh -c 'MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test --noinput'
+```
 
-As orientações para agentes que trabalharem no projeto estão em [AGENTS.md](AGENTS.md).
+Os testes cobrem autorização em todas as rotas e escritas diretas, CSRF, login/logout, CRUD, limites dos campos, busca, paginação, escape HTML, provisionamento idempotente e restrições de vagas. O teste concorrente usa conexões independentes disputando a segunda vaga e exige exatamente um vencedor.
+
+Para verificações rápidas sem MySQL, existe uma configuração isolada com SQLite; ela **não substitui** a aceitação no MySQL e pula o teste concorrente:
+
+```sh
+DJANGO_SETTINGS_MODULE=config.test_settings .venv/bin/python manage.py test
+```
+
+Esse comando opcional pressupõe um ambiente `.venv` com Django e suas dependências instalados. A configuração normal sempre usa MySQL.
+
+Para verificar persistência, cadastre um convidado e reinicie os serviços:
+
+```sh
+docker compose restart db web
+```
+
+Aguarde a saúde do banco e confira a lista novamente. `docker compose down` mantém o volume; `docker compose down -v` apaga permanentemente o banco local. Alterar senhas do MySQL no `.env` não modifica usuários de um volume já inicializado.
+
+## Organização e autorização
+
+- `accounts`: usuário customizado, perfis e vagas; comando `provision_demo`.
+- `guests`: registros de convidados, formulários e views protegidas.
+- `config`: configuração por ambiente, URLs e WSGI.
+- `templates` e `static`: interface responsiva.
+
+Visitantes são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. Não há painel administrativo exposto nesta etapa.
+
+Migrations versionadas criam o esquema; não criam contas nem dados de demonstração. As orientações de contribuição estão em [AGENTS.md](AGENTS.md).
+
+## GitHub Actions
+
+Pushes e pull requests para `main` executam os testes no MySQL. Depois de um push aprovado pelos testes, um workflow reutilizável pode atualizar a VPS por SSH. O deploy permanece desabilitado até configurarmos o servidor e `DEPLOY_ENABLED=true` no GitHub.
+
+O gatilho, o job reutilizável e o script da VPS estão separados. Consulte [docs/deployment.md](docs/deployment.md) para os secrets, variáveis e a preparação de produção ainda pendente.

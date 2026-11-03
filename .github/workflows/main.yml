@@ -1,0 +1,50 @@
+name: Validate and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wedding-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Django and MySQL checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test deployment safety boundaries
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
+      - name: Generate isolated test configuration
+        run: python3 scripts/init_env.py
+      - name: Build application
+        run: docker compose build web
+      - name: Check configuration and migrations
+        run: |
+          docker compose run --rm web python manage.py check
+          docker compose run --rm web python manage.py makemigrations --check --dry-run
+      - name: Test against MySQL
+        run: docker compose run --rm web sh -c 'MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test --noinput'
+      - name: Remove ephemeral test services
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+  deploy:
+    name: Deploy to Hostinger
+    needs: test
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request' &&
+      vars.DEPLOY_ENABLED == 'true'
+    uses: ./.github/workflows/deploy-vps.yml
+    secrets: inherit

@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+staticfiles/
+.coverage
+.DS_Store
+# Server-owned configuration; provisioned separately from application updates.
+compose.production.yaml
+.deploy.lock
