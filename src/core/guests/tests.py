@@ -31,7 +31,7 @@ class GuestTests(TestCase):
                         response = getattr(self.client, method)(url, {"name": "Inválido"})
                         self.assertEqual(response.status_code, 403 if user else 302)
                         if user:
-                            self.assertNotContains(response, 'href="/convidados/adicionar/"', status_code=403)
+                            self.assertNotContains(response, 'href="/noivos/convidados/adicionar/"', status_code=403)
                         else:
                             self.assertTrue(response.url.startswith("/entrar/?next="))
         self.guest.refresh_from_db()
@@ -57,7 +57,7 @@ class GuestTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
         response = self.client.post(reverse("login"), {"username": "one", "password": "Valid-password-89!"})
-        self.assertRedirects(response, reverse("guests:list"))
+        self.assertRedirects(response, reverse("couple:home"))
         self.assertEqual(self.client.get(reverse("logout")).status_code, 405)
         self.assertRedirects(self.client.post(reverse("logout")), reverse("login"))
         User.objects.filter(pk=self.one.pk).update(is_active=False)

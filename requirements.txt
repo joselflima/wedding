@@ -1,4 +1,0 @@
-Django==5.2.19
-asgiref==3.13.0
-sqlparse==0.6.1
-mysqlclient==2.3.0

@@ -1,11 +1,11 @@
 {% load static %}<!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Wedding{% endblock %} · Nosso casamento</title><link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Wedding{% endblock %} · Maria Eduarda &amp; José Lucas</title><link rel="stylesheet" href="{% static 'css/app.css' %}?v=2"></head>
 <body>
 <a class="skip-link" href="#main">Pular para o conteúdo</a>
-<header class="site-header"><div class="header-inner"><a class="brand" href="{% url 'guests:list' %}"><span class="brand-mark" aria-hidden="true">w.</span><span>nosso casamento<small>UM NOVO CAPÍTULO, JUNTOS</small></span></a>
+<header class="site-header"><div class="header-inner"><a class="brand" href="{% url 'home' %}"><span class="brand-mark" aria-hidden="true">M &amp; J</span><span>Maria Eduarda &amp; José Lucas<small>UMA HISTÓRIA PARA CELEBRAR</small></span></a>
 {% if user.is_authenticated %}<div class="account"><span>{{ user.first_name|default:user.username }}</span><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form></div>{% endif %}</div></header>
-{% if user.is_couple %}<nav class="navigation" aria-label="Principal"><div><a href="{% url 'guests:list' %}" aria-current="page">Convidados</a><span>ESPAÇO DOS NOIVOS</span></div></nav>{% endif %}
+{% if user.is_couple %}<nav class="navigation" aria-label="Principal"><div><div class="nav-links"><a href="{% url 'couple:home' %}"{% if request.resolver_match.view_name == 'couple:home' %} aria-current="page"{% endif %}>Início</a><a href="{% url 'guests:list' %}"{% if request.resolver_match.namespace == 'guests' %} aria-current="page"{% endif %}>Convidados</a></div><span>ESPAÇO DOS NOIVOS</span></div></nav>{% endif %}
 <main id="main" class="container">{% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}</div>{% endif %}{% block content %}{% endblock %}</main>
-<footer class="site-footer">Feito para organizar o nosso grande dia.</footer>
+<footer class="site-footer">Maria Eduarda &amp; José Lucas · Feito para celebrar juntos.</footer>
 </body></html>

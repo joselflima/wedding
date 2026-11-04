@@ -4,7 +4,8 @@ Aplicação pessoal para planejar um único casamento, com uma lista de convidad
 
 ## Disponível
 
-- Login com usuário e senha e logout por POST.
+- Entrada comum de Maria Eduarda & José Lucas com usuário e senha e logout por POST. Após o login, o perfil da conta determina o destino, independentemente de `next`.
+- Páginas iniciais exclusivas por perfil: `/noivos/`, `/convidados/` e `/padrinhos/`. A gestão da lista fica em `/noivos/convidados/`, acessível pelo início dos noivos.
 - Lista de convidados exclusiva dos noivos, com cadastro, edição, exclusão confirmada, busca por nome ou telefone, ordenação alfabética e paginação de 25 registros.
 - Total geral e quantidade de resultados da busca; estados vazio, sem resultados e mensagens de sucesso.
 - Nome obrigatório (200 caracteres), telefone opcional (30) e observações opcionais (2.000). Cada registro representa uma pessoa; nomes repetidos são permitidos. Cadastrar convidados não cria contas.
@@ -12,11 +13,34 @@ Aplicação pessoal para planejar um único casamento, com uma lista de convidad
 - No máximo dois usuários com perfil Noivos em todo o banco, garantidos por restrições `UNIQUE` e `CHECK`, inclusive em gravações concorrentes. Contas inativas continuam ocupando sua vaga.
 - Comando explícito para criar um noivo de demonstração, sem privilégios administrativos ou convidados fictícios.
 
-Perfis Convidados e Padrinhos existem apenas para autorização; suas funcionalidades e a lista de padrinhos permanecem planejadas. Cadastro público, recuperação de senha, gestão de vagas pela interface e implantação na VPS Hostinger não fazem parte desta versão.
+Convidados e Padrinhos possuem páginas de acolhimento protegidas por perfil; suas funcionalidades e a lista de padrinhos permanecem planejadas. O espaço `/convidados/` não dá acesso à gestão da lista. Cadastro público, recuperação de senha, gestão de vagas pela interface e implantação na VPS Hostinger não fazem parte desta versão.
 
 ## Stack
 
-Python 3.13, Django 5.2.19 LTS, mysqlclient 2.3.0 e MySQL 8.4. Dependências Python diretas e transitivas estão fixadas em `requirements.txt`. Templates Django e CSS próprio, sem build de frontend. Docker Compose mantém aplicação e banco separados; o MySQL usa volume persistente e não publica porta no host.
+Python 3.13, Django 5.2.19 LTS, mysqlclient 2.3.0 e MySQL 8.4. Dependências Python são gerenciadas pelo uv: dependências diretas em `pyproject.toml` e resolução completa fixada em `uv.lock`. A versão do Python está definida em `.python-version`. O Docker instala as dependências com `uv sync --locked`. Templates Django e CSS próprio, sem build de frontend. Docker Compose mantém aplicação e banco separados; o MySQL usa volume persistente e não publica porta no host.
+
+## Ambiente virtual com uv
+
+Instale o [uv](https://docs.astral.sh/uv/getting-started/installation/) e execute na raiz:
+
+```sh
+uv sync --locked
+source .venv/bin/activate
+```
+
+O comando cria ou sincroniza `.venv` com Python 3.13 e as dependências do lockfile. A ativação é opcional ao usar `uv run`. O ambiente é ignorado pelo Git e pelo build Docker.
+
+Para compilar `mysqlclient` no macOS, instale as bibliotecas cliente do MySQL e pkg-config:
+
+```sh
+brew install mysql-client pkg-config
+export PKG_CONFIG_PATH="$(brew --prefix mysql-client)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+uv sync --locked
+```
+
+No Debian/Ubuntu, os pacotes necessários são `build-essential`, `pkg-config`, `default-libmysqlclient-dev` e os headers do Python 3.13. O Docker já instala as dependências de compilação.
+
+Use `uv add pacote` ou `uv remove pacote` para alterar dependências e versione `pyproject.toml` e `uv.lock` juntos. Para atualizar as versões transitivas preservadas nesta migração, ajuste também `constraint-dependencies` em `pyproject.toml`.
 
 ## Execução local
 
@@ -56,10 +80,10 @@ Os testes cobrem autorização em todas as rotas e escritas diretas, CSRF, login
 Para verificações rápidas sem MySQL, existe uma configuração isolada com SQLite; ela **não substitui** a aceitação no MySQL e pula o teste concorrente:
 
 ```sh
-DJANGO_SETTINGS_MODULE=config.test_settings .venv/bin/python src/manage.py test src
+DJANGO_SETTINGS_MODULE=config.test_settings uv run --locked python src/manage.py test src
 ```
 
-Esse comando opcional pressupõe um ambiente `.venv` com Django e suas dependências instalados. A configuração normal sempre usa MySQL.
+Esse comando usa o ambiente `.venv` gerenciado pelo uv. A configuração normal sempre usa MySQL.
 
 Para verificar persistência, cadastre um convidado e reinicie os serviços:
 
@@ -78,9 +102,9 @@ src/
 ├── manage.py
 ├── config/             # Settings, URLs globais e WSGI
 ├── core/
-│   ├── guests/         # App Convidados: modelo, migrations, formulários, views e templates
-│   ├── couple/         # App Noivos: estrutura pronta para funcionalidades próprias
-│   └── godparents/     # App Padrinhos: estrutura pronta para funcionalidades próprias
+│   ├── guests/         # App Convidados: início do perfil e recurso de gestão restrito aos noivos
+│   ├── couple/         # App Noivos: início e acesso à gestão de convidados
+│   └── godparents/     # App Padrinhos: início protegido por perfil
 └── foundation/
     ├── accounts/       # App compartilhado: usuário, autenticação, perfis e provisionamento
     ├── permissions.py  # Autorização compartilhada (CoupleRequiredMixin)
@@ -88,13 +112,13 @@ src/
     └── static/         # CSS compartilhado
 ```
 
-Os três apps de domínio estão registrados no Django. `couple` e `godparents` ainda não possuem modelos ou rotas próprios; seus campos e operações serão definidos nas próximas etapas. Contas de acesso continuam em `foundation/accounts`, separadas dos registros das listas.
+Os três apps de domínio estão registrados no Django. `couple` e `godparents` possuem rotas e páginas iniciais próprias, sem modelos; seus campos e operações serão definidos nas próximas etapas. Contas de acesso continuam em `foundation/accounts`, separadas dos registros das listas.
 
 Os labels `accounts` e `guests`, as tabelas e o histórico de migrations foram preservados: a reorganização não exige migração de dados. Imports Python usam `foundation.accounts` e `core.guests`.
 
 Dockerfile, Compose, dependências e scripts de infraestrutura permanecem na raiz. O container executa em `/app/src`, portanto os comandos Docker com `python manage.py` continuam válidos. Fora do container, use `python src/manage.py` a partir da raiz; o módulo de configuração é `config.settings` e o WSGI é `config.wsgi.application`. Para descobrir toda a suíte a partir da raiz, use `python src/manage.py test src`; no container, `python manage.py test` já parte de `src`.
 
-Visitantes são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. Não há painel administrativo exposto nesta etapa.
+A raiz e `/entrar/` exibem o mesmo login aos visitantes e encaminham contas autenticadas ao início do perfil. Visitantes de rotas protegidas são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. Não há painel administrativo exposto nesta etapa.
 
 Migrations versionadas criam o esquema; não criam contas nem dados de demonstração. As orientações de contribuição estão em [AGENTS.md](AGENTS.md).
 

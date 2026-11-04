@@ -1,9 +1,9 @@
 from django.contrib import messages
 from django.db.models import Q
 from django.urls import reverse_lazy
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 
-from foundation.permissions import CoupleRequiredMixin
+from foundation.permissions import CoupleRequiredMixin, RoleRequiredMixin
 
 from .forms import GuestForm
 from .models import Guest
@@ -60,3 +60,8 @@ class GuestDeleteView(CoupleRequiredMixin, DeleteView):
         response = super().form_valid(form)
         messages.success(self.request, "Convidado excluído da lista.")
         return response
+
+
+class HomeView(RoleRequiredMixin, TemplateView):
+    required_role = "guest"
+    template_name = "guests/home.html"

@@ -3,8 +3,19 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 
 
-class CoupleRequiredMixin(LoginRequiredMixin):
+class RoleRequiredMixin(LoginRequiredMixin):
+    required_role = None
+
     def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and not request.user.is_couple:
-            raise PermissionDenied
+        user = request.user
+        if user.is_authenticated:
+            allowed = user.is_active and user.role == self.required_role
+            if self.required_role == "couple":
+                allowed = allowed and user.is_couple
+            if not allowed:
+                raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
+
+
+class CoupleRequiredMixin(RoleRequiredMixin):
+    required_role = "couple"

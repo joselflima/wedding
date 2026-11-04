@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Espaço dos convidados{% endblock %}
+{% block content %}<section class="panel welcome-panel"><p class="eyebrow">ESPAÇO DOS CONVIDADOS</p><h1>Bem-vindo, {{ user.first_name|default:user.username }}.</h1><p>Maria Eduarda &amp; José Lucas</p><p class="muted">É uma alegria ter você fazendo parte deste momento.</p></section>{% endblock %}
