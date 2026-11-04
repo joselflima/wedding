@@ -6,5 +6,5 @@ urlpatterns = [
     path("", RedirectView.as_view(pattern_name="guests:list", permanent=False)),
     path("entrar/", auth_views.LoginView.as_view(), name="login"),
     path("sair/", auth_views.LogoutView.as_view(), name="logout"),
-    path("convidados/", include("guests.urls")),
+    path("convidados/", include("core.guests.urls")),
 ]

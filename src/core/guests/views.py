@@ -1,18 +1,12 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+
+from foundation.permissions import CoupleRequiredMixin
+
 from .forms import GuestForm
 from .models import Guest
-
-
-class CoupleRequiredMixin(LoginRequiredMixin):
-    def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and not request.user.is_couple:
-            raise PermissionDenied
-        return super().dispatch(request, *args, **kwargs)
 
 
 class GuestListView(CoupleRequiredMixin, ListView):

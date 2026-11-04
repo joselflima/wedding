@@ -63,7 +63,7 @@ class ProvisionTests(TestCase):
         self.assertEqual(user.password, original_password)
         self.assertEqual(user.first_name, "Nome alterado")
         self.assertEqual(User.objects.count(), 1)
-        from guests.models import Guest
+        from core.guests.models import Guest
         self.assertEqual(Guest.objects.count(), 0)
 
     def test_uses_second_seat(self):

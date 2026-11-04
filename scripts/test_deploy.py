@@ -58,7 +58,7 @@ if [[ -n "$TEST_DOCKER_FAIL" && "$*" == *"$TEST_DOCKER_FAIL"* ]]; then exit 1; f
         self.assertEqual(self.commands(), "")
 
     def test_local_changes_are_not_overwritten(self):
-        self.env["TEST_DIRTY"] = " M config/settings.py"
+        self.env["TEST_DIRTY"] = " M src/config/settings.py"
         self.assertNotEqual(self.remote().returncode, 0)
         self.assertNotIn("checkout", self.commands())
         self.assertNotIn("docker", self.commands())

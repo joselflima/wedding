@@ -56,7 +56,7 @@ Os testes cobrem autorização em todas as rotas e escritas diretas, CSRF, login
 Para verificações rápidas sem MySQL, existe uma configuração isolada com SQLite; ela **não substitui** a aceitação no MySQL e pula o teste concorrente:
 
 ```sh
-DJANGO_SETTINGS_MODULE=config.test_settings .venv/bin/python manage.py test
+DJANGO_SETTINGS_MODULE=config.test_settings .venv/bin/python src/manage.py test src
 ```
 
 Esse comando opcional pressupõe um ambiente `.venv` com Django e suas dependências instalados. A configuração normal sempre usa MySQL.
@@ -71,10 +71,28 @@ Aguarde a saúde do banco e confira a lista novamente. `docker compose down` man
 
 ## Organização e autorização
 
-- `accounts`: usuário customizado, perfis e vagas; comando `provision_demo`.
-- `guests`: registros de convidados, formulários e views protegidas.
-- `config`: configuração por ambiente, URLs e WSGI.
-- `templates` e `static`: interface responsiva.
+Todo o código Django fica em `src`, organizado por domínio e recursos compartilhados:
+
+```text
+src/
+├── manage.py
+├── config/             # Settings, URLs globais e WSGI
+├── core/
+│   ├── guests/         # App Convidados: modelo, migrations, formulários, views e templates
+│   ├── couple/         # App Noivos: estrutura pronta para funcionalidades próprias
+│   └── godparents/     # App Padrinhos: estrutura pronta para funcionalidades próprias
+└── foundation/
+    ├── accounts/       # App compartilhado: usuário, autenticação, perfis e provisionamento
+    ├── permissions.py  # Autorização compartilhada (CoupleRequiredMixin)
+    ├── templates/      # Base, login e páginas de erro
+    └── static/         # CSS compartilhado
+```
+
+Os três apps de domínio estão registrados no Django. `couple` e `godparents` ainda não possuem modelos ou rotas próprios; seus campos e operações serão definidos nas próximas etapas. Contas de acesso continuam em `foundation/accounts`, separadas dos registros das listas.
+
+Os labels `accounts` e `guests`, as tabelas e o histórico de migrations foram preservados: a reorganização não exige migração de dados. Imports Python usam `foundation.accounts` e `core.guests`.
+
+Dockerfile, Compose, dependências e scripts de infraestrutura permanecem na raiz. O container executa em `/app/src`, portanto os comandos Docker com `python manage.py` continuam válidos. Fora do container, use `python src/manage.py` a partir da raiz; o módulo de configuração é `config.settings` e o WSGI é `config.wsgi.application`. Para descobrir toda a suíte a partir da raiz, use `python src/manage.py test src`; no container, `python manage.py test` já parte de `src`.
 
 Visitantes são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. Não há painel administrativo exposto nesta etapa.
 
