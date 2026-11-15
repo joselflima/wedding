@@ -1,0 +1,68 @@
+name: wedding
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wedding}
+      MYSQL_USER: ${MYSQL_USER:-wedding}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Required}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u $$MYSQL_USER -D $$MYSQL_DATABASE -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  init:
+    image: ${WEB_IMAGE:?Set private GHCR image reference}
+    environment: &app_env
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Required}
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: ${DOMAIN:?Required},localhost
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
+      DJANGO_BEHIND_PROXY: "true"
+      DJANGO_SECURE_SSL_REDIRECT: "true"
+      DJANGO_HSTS_SECONDS: "3600"
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wedding}
+      MYSQL_USER: ${MYSQL_USER:-wedding}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Required}
+    command: ["sh", "-c", "python manage.py check --deploy --fail-level WARNING && python manage.py migrate --noinput"]
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    image: ${WEB_IMAGE:?Required}
+    restart: unless-stopped
+    environment: *app_env
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); import django; django.setup(); from django.db import connection; connection.ensure_connection(); import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/', headers={'X-Forwarded-Proto':'https'}), timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      retries: 12
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Required}
+    entrypoint: ["sh", "-c"]
+    command: ['printf "%s { reverse_proxy web:8000 }\n" "$$DOMAIN" > /tmp/Caddyfile; exec caddy run --config /tmp/Caddyfile --adapter caddyfile']
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:

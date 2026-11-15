@@ -5,7 +5,9 @@ description = "Aplicação pessoal para planejamento de um casamento."
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "Django==5.2.19",
+    "gunicorn>=23,<24",
     "mysqlclient==2.3.0",
+    "whitenoise>=6,<7",
 ]
 
 [tool.uv]

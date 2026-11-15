@@ -59,3 +59,33 @@ Falhas de testes impedem a chamada do deploy. Erros de SSH, build, verificaçõe
 Se uma execução falhar depois de atualizar o checkout, os containers antigos podem continuar ativos; o SHA no diretório sozinho não comprova que a nova versão está servindo. A etapa `up --wait` verifica os serviços; a definição do healthcheck HTTP e a conferência pública de HTTPS serão completadas com a configuração da VPS.
 
 Para desligar somente a publicação automática, definir `DEPLOY_ENABLED=false`. Os testes continuam rodando.
+
+## Implantação pelo painel Docker da Hostinger (GHCR)
+
+Use `compose.vps.yaml` como projeto independente, não como override. Ele inclui
+MySQL, inicialização das migrations, Gunicorn/WhiteNoise e Caddy com HTTPS.
+O painel deve suportar `service_healthy` e `service_completed_successfully`.
+
+Após os testes de main, o job `publish` publica a imagem privada
+`ghcr.io/joselflima/wedding:<SHA>` e `:latest`. Confirme no GHCR a visibilidade
+privada e o sucesso da publicação antes de implantar. Configure no painel uma
+credencial de leitura GHCR (token com `read:packages`), nunca no Compose.
+
+Configure as variáveis do projeto: `WEB_IMAGE` (referência completa com SHA),
+`DOMAIN` (somente hostname), `DJANGO_SECRET_KEY`, `MYSQL_PASSWORD`,
+`MYSQL_ROOT_PASSWORD` e, opcionalmente, `MYSQL_DATABASE` e `MYSQL_USER`.
+Use as mesmas credenciais e o mesmo projeto `wedding` do banco existente.
+DNS deve apontar para a VPS e portas 80/443 devem estar disponíveis.
+Não execute dois projetos disputando essas portas ou o mesmo banco.
+
+Importe o Compose e implante pelo painel. Equivalente no terminal:
+
+```sh
+docker compose -p wedding -f compose.vps.yaml up -d --pull always --wait
+```
+
+O serviço `init` terminar com código zero é esperado. Se falhar, consulte seus
+logs; o web fica bloqueado. Não são criadas contas automaticamente. Atualizações
+exigem nova referência de imagem e reimplantação; publicar no GHCR não atualiza
+o painel automaticamente. Não remova volumes para corrigir falhas.
+O fluxo SSH anterior continua independente e desabilitado por padrão.

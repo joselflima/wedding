@@ -127,3 +127,11 @@ Migrations versionadas criam o esquema; não criam contas nem dados de demonstra
 Pushes e pull requests para `main` executam os testes no MySQL. Depois de um push aprovado pelos testes, um workflow reutilizável pode atualizar a VPS por SSH. O deploy permanece desabilitado até configurarmos o servidor e `DEPLOY_ENABLED=true` no GitHub.
 
 O gatilho, o job reutilizável e o script da VPS estão separados. Consulte [docs/deployment.md](docs/deployment.md) para os secrets, variáveis e a preparação de produção ainda pendente.
+
+## Produção com imagem pronta
+
+A imagem usa Gunicorn e WhiteNoise, com estáticos coletados no build.
+Para o painel da Hostinger, use o Compose independente `compose.vps.yaml`:
+o GitHub publica a imagem no GHCR após os testes, e a VPS baixa a imagem pronta.
+Migrations são executadas pelo serviço `init` antes do web; Caddy fornece HTTPS.
+Consulte [implantação](docs/deployment.md#implantação-pelo-painel-docker-da-hostinger-ghcr).

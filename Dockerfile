@@ -9,6 +9,7 @@ RUN uv sync --locked --no-dev --no-cache
 RUN useradd --create-home wedding
 COPY --chown=wedding:wedding . .
 WORKDIR /app/src
+RUN DJANGO_SECRET_KEY=build-only-not-for-runtime python manage.py collectstatic --noinput
 USER wedding
 EXPOSE 8000
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "config.wsgi.application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-", "--error-logfile", "-"]
