@@ -33,7 +33,7 @@ class GuestTests(TestCase):
                         if user:
                             self.assertNotContains(response, 'href="/noivos/convidados/adicionar/"', status_code=403)
                         else:
-                            self.assertTrue(response.url.startswith("/entrar/?next="))
+                            self.assertTrue(response.url.startswith("/login/?next="))
         self.guest.refresh_from_db()
         self.assertEqual(self.guest.name, "Ana")
         self.assertEqual(Guest.objects.count(), 1)

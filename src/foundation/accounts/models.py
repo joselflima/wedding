@@ -11,7 +11,6 @@ class User(AbstractUser):
 
     role = models.CharField("perfil", max_length=12, choices=Role.choices, default=Role.GUEST)
     seat = models.PositiveSmallIntegerField("vaga de noivo", null=True, blank=True, unique=True)
-    is_demo = models.BooleanField(default=False, editable=False)
 
     class Meta:
         constraints = [models.CheckConstraint(

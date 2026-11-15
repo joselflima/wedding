@@ -5,7 +5,7 @@ Aplicação pessoal para planejar um único casamento, com uma lista de convidad
 ## Disponível
 
 - Entrada comum de Maria Eduarda & José Lucas com usuário e senha e logout por POST. Após o login, o perfil da conta determina o destino, independentemente de `next`.
-- Páginas iniciais exclusivas por perfil: `/noivos/`, `/convidados/` e `/padrinhos/`. A gestão da lista fica em `/noivos/convidados/`, acessível pelo início dos noivos.
+- Páginas iniciais exclusivas por perfil: `/couple/`, `/convidados/` e `/padrinhos/`. A gestão da lista fica em `/noivos/convidados/`, acessível pelo início dos noivos.
 - Lista de convidados exclusiva dos noivos, com cadastro, edição, exclusão confirmada, busca por nome ou telefone, ordenação alfabética e paginação de 25 registros.
 - Total geral e quantidade de resultados da busca; estados vazio, sem resultados e mensagens de sucesso.
 - Nome obrigatório (200 caracteres), telefone opcional (30) e observações opcionais (2.000). Cada registro representa uma pessoa; nomes repetidos são permitidos. Cadastrar convidados não cria contas.
@@ -51,19 +51,16 @@ python3 scripts/init_env.py
 docker compose up -d db
 docker compose build web
 docker compose run --rm web python manage.py migrate
-docker compose run --rm web python manage.py provision_demo
 docker compose up -d web
 ```
 
 No macOS, caso o Docker informe que `docker-credential-desktop` não foi encontrado, inclua seus utilitários no PATH com `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"` e repita o comando.
 
-Abra [http://localhost:8000](http://localhost:8000). Use `DEMO_USERNAME` e `DEMO_PASSWORD` do seu `.env`; o login padrão é `noivo_demo` e a senha é gerada individualmente. O arquivo não é versionado. A lista começa vazia.
 
 O gerador nunca substitui um `.env` existente. Alternativamente, copie `.env.example` para `.env` e preencha os segredos. Configure `APP_PORT` para mudar a porta local e `DJANGO_ALLOWED_HOSTS` se necessário. O Compose espera a saúde do MySQL antes de executar a aplicação.
 
-O provisionamento usa hash de senha do Django, valida a senha e ocupa a primeira vaga disponível. Reexecuções com o mesmo usuário de demonstração não alteram senha ou dados existentes. Login de outra conta, demonstração inativa ou duas vagas ocupadas geram erro. Alterar `DEMO_PASSWORD` no `.env` depois do provisionamento não muda a senha já cadastrada; use o comando interativo `docker compose run --rm web python manage.py changepassword noivo_demo` quando necessário.
 
-A aplicação usa `runserver` e está publicada apenas em `127.0.0.1` para desenvolvimento. A implantação na VPS terá uma etapa própria para servidor de aplicação, HTTPS, estáticos e configuração de produção. Fora de debug, os cookies de sessão e CSRF exigem HTTPS.
+A aplicação usa Gunicorn e está publicada apenas em `127.0.0.1` para desenvolvimento. A implantação na VPS terá uma etapa própria para servidor de aplicação, HTTPS, estáticos e configuração de produção. Fora de debug, os cookies de sessão e CSRF exigem HTTPS.
 
 ## Verificação
 
@@ -75,7 +72,7 @@ docker compose run --rm web python manage.py makemigrations --check --dry-run
 docker compose run --rm web sh -c 'MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test --noinput'
 ```
 
-Os testes cobrem autorização em todas as rotas e escritas diretas, CSRF, login/logout, CRUD, limites dos campos, busca, paginação, escape HTML, provisionamento idempotente e restrições de vagas. O teste concorrente usa conexões independentes disputando a segunda vaga e exige exatamente um vencedor.
+Os testes cobrem autorização em todas as rotas e escritas diretas, CSRF, login/logout, CRUD, limites dos campos, busca, paginação, escape HTML, sessões e restrições de vagas. O teste concorrente usa conexões independentes disputando a segunda vaga e exige exatamente um vencedor.
 
 Para verificações rápidas sem MySQL, existe uma configuração isolada com SQLite; ela **não substitui** a aceitação no MySQL e pula o teste concorrente:
 
@@ -118,7 +115,7 @@ Os labels `accounts` e `guests`, as tabelas e o histórico de migrations foram p
 
 Dockerfile, Compose, dependências e scripts de infraestrutura permanecem na raiz. O container executa em `/app/src`, portanto os comandos Docker com `python manage.py` continuam válidos. Fora do container, use `python src/manage.py` a partir da raiz; o módulo de configuração é `config.settings` e o WSGI é `config.wsgi.application`. Para descobrir toda a suíte a partir da raiz, use `python src/manage.py test src`; no container, `python manage.py test` já parte de `src`.
 
-A raiz e `/entrar/` exibem o mesmo login aos visitantes e encaminham contas autenticadas ao início do perfil. Visitantes de rotas protegidas são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. Não há painel administrativo exposto nesta etapa.
+A raiz e `/login/` exibem o mesmo login aos visitantes e encaminham contas autenticadas ao início do perfil. Visitantes de rotas protegidas são redirecionados ao login. Contas autenticadas de outros perfis recebem HTTP 403 em todas as operações, mesmo se forem superusuários. Apenas contas ativas com perfil Noivos e vaga 1 ou 2 têm acesso. O painel `/admin/` permite gerenciar contas.
 
 Migrations versionadas criam o esquema; não criam contas nem dados de demonstração. As orientações de contribuição estão em [AGENTS.md](AGENTS.md).
 
@@ -135,3 +132,15 @@ Para o painel da Hostinger, use o Compose independente `compose.vps.yaml`:
 o GitHub publica a imagem no GHCR após os testes, e a VPS baixa a imagem pronta.
 Migrations são executadas pelo serviço `init` antes do web; Caddy fornece HTTPS.
 Consulte [implantação](docs/deployment.md#implantação-pelo-painel-docker-da-hostinger-ghcr).
+
+
+### Contas e autenticação
+
+Aplique as migrations com `docker compose exec web python manage.py migrate` antes de criar contas.
+Crie o administrador com `docker compose run --rm web python manage.py createsuperuser`.
+Acesse `/admin/` para cadastrar contas com perfil e vaga. Apenas superusuários gerenciam contas.
+Noivos usam as vagas 1 e 2; convidados e padrinhos deixam a vaga vazia.
+O login em `/login/` cria uma sessão Django e encaminha ao início do perfil; o logout exige POST.
+Contas das listas não criam usuários automaticamente.
+A migração desativa contas de demonstração, inutiliza suas senhas e remove suas sessões,
+preservando registros e vagas. Revise essas contas pelo Admin antes de liberar uma vaga.
