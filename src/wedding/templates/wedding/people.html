@@ -1,0 +1,6 @@
+<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Participantes</title><h1>Participantes</h1><a href="/people/">Novo participante</a>
+<form method="get"><input name="q" placeholder="Nome ou usuário"><select name="role"><option value="">Todos os tipos</option>{% for key,label in roles %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select><button>Buscar</button></form>
+<table><tr><th>Nome</th><th>Usuário</th><th>Telefone</th><th>Tipo</th><th>Ativação</th></tr>{% for row in rows %}<tr><td><a href="/people/{{ row.pk }}/">{{ row.name }}</a></td><td>{{ row.username }}</td><td>{{ row.phone }}</td><td>{{ row.get_role_display }}</td><td>{{ row.is_active|yesno:'Ativa,Pendente' }}</td></tr>{% endfor %}</table>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button>Salvar</button></form>
+{% if person %}<form method="post">{% csrf_token %}<button name="action" value="link">Gerar novo link de acesso</button></form><form method="post" onsubmit="return confirm('Excluir definitivamente esta conta?')">{% csrf_token %}<button name="action" value="delete">Excluir definitivamente</button></form>{% endif %}
+{% if link %}<p>Copie e compartilhe este link (válido por 72 horas):</p><input readonly value="{{ link }}" size="100">{% endif %}</html>

@@ -132,3 +132,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+
+INSTALLED_APPS += ['wedding']
+AUTH_USER_MODEL = 'wedding.User'
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+PASSWORD_RESET_TIMEOUT = 72 * 3600
