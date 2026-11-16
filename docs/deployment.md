@@ -1,116 +1,44 @@
-# Deploy automático para a VPS
+# Produção na Hostinger
 
-## Estado
+VPS 1625057; domínio wedding.srv1625057.hstgr.cloud. Apenas produção na VPS, banco wedding_producao. O banco local é independente e recebe as mesmas migrations.
 
-A automação está preparada no repositório. A publicação real permanece desabilitada até configurarmos a VPS, o ambiente `production` no GitHub e a configuração de produção da aplicação. Nenhum servidor foi alterado nesta etapa.
+Importe compose.vps.yaml de uma revisão Git publicada e fixe APP_REF nessa revisão. Configure no painel DJANGO_SECRET_KEY (aleatório, 64 bytes), MYSQL_USER, MYSQL_PASSWORD e MYSQL_ROOT_PASSWORD. Não reutilize segredos antigos. A rede shared_net deve existir e ser alcançável pelo Traefik em rede host.
 
-## Fluxo
+Antes da primeira implantação: validar imagem local, conferir os recursos do projeto wedding e remover exclusivamente sua implantação antiga e volume wedding_mysql_data, conforme exclusão autorizada. Não remover outros projetos.
 
-1. Push para `main` executa `.github/workflows/main.yml`.
-2. O job `test` constrói a aplicação, confere migrations e executa os testes no MySQL 8.4 em ambiente descartável.
-3. Se os testes passarem e a variável de repositório `DEPLOY_ENABLED` for exatamente `true`, o workflow chama `.github/workflows/deploy-vps.yml`.
-4. O workflow reutilizável usa o ambiente `production` e chama `scripts/run-deploy.sh`, responsável pela conexão SSH.
-5. Pela conexão, `scripts/deploy-vps.sh` é enviado via stdin e executado na VPS com o SHA do push. Ele atualiza o checkout para esse commit, constrói a aplicação, verifica as configurações de produção, aplica migrations e atualiza os serviços.
-
-Pull requests para `main` executam somente os testes. É possível reexecutar pelo botão **Run workflow** do workflow **Validate and deploy**, selecionando `main`. A verificação completa também ocorre nessa execução manual.
-
-Deploys não interrompem outro deploy em andamento. O GitHub serializa as execuções e a VPS usa `flock`. Um SHA que já não seja a ponta de `main` é ignorado para impedir a publicação de uma versão antiga que estava na fila. Assim, pushes rápidos podem resultar em apenas a versão mais recente publicada.
-
-## Configuração no GitHub
-
-Em **Settings → Secrets and variables → Actions → Variables**, criar a variável de repositório:
-
-| Variável | Valor |
-| --- | --- |
-| `DEPLOY_ENABLED` | Deixar ausente ou `false` até a VPS estar pronta; depois usar `true`. |
-
-Criar **Settings → Environments → production**, restringir esse ambiente à branch `main` e configurar:
-
-| Tipo | Nome | Conteúdo |
-| --- | --- | --- |
-| Variable | `VPS_HOST` | IP IPv4 ou hostname da VPS, sem protocolo. |
-| Variable | `VPS_USER` | Usuário SSH de deploy. |
-| Variable | `VPS_PORT` | Porta SSH; padrão `22`. |
-| Variable | `VPS_APP_DIR` | Caminho absoluto do clone na VPS, sem espaços; por exemplo `/srv/wedding`. |
-| Secret | `VPS_SSH_KEY` | Chave SSH privada dedicada ao deploy, sem passphrase, cuja pública está autorizada na VPS. |
-| Secret | `VPS_KNOWN_HOSTS` | Entrada `known_hosts` da VPS, com fingerprint conferido por canal confiável. Para porta diferente de 22, usar `[host]:porta`. |
-
-A chave deve ser cadastrada diretamente nos secrets, sem aparecer em commits ou no chat. A conexão exige verificação da identidade do servidor; não usa `StrictHostKeyChecking=no` nem confia automaticamente no resultado de `ssh-keyscan`.
-
-Não configurar revisores obrigatórios no ambiente se a intenção for publicar automaticamente, sem uma aprovação manual por push.
-
-## Preparação pendente da VPS
-
-- Linux com Git, Bash, `flock`, Docker e Docker Compose v2 com suporte a `--wait`.
-- Usuário de deploy com acesso ao diretório e ao Docker.
-- Clone deste repositório em `VPS_APP_DIR`, com `origin` correto. Se o repositório for privado, configurar na VPS uma credencial de leitura do GitHub, independente da chave GitHub Actions → VPS.
-- `.env` de produção no servidor, com segredos próprios, `DJANGO_DEBUG=false`, domínio e demais configurações de segurança. Não copiar o `.env` local.
-- `compose.production.yaml` no diretório do clone, mantido no servidor e ignorado pelo Git. Prepararemos esse arquivo após conhecer os serviços já existentes na VPS. Ele deverá substituir `runserver` por um servidor de produção, usar o diretório `/app/src` e o módulo WSGI `config.wsgi.application`, servir arquivos estáticos, integrar HTTPS/proxy, configurar reinício e healthcheck da aplicação. A configuração de produção precisa passar `manage.py check --deploy --fail-level WARNING`.
-- Domínio, DNS, HTTPS, backup do MySQL e política de restauração definidos antes da ativação.
-
-O script aborta se faltarem `.env` ou `compose.production.yaml`, ou se houver alterações locais em arquivos versionados. Ele não cria usuários, não troca senhas e não apaga volumes. A configuração atual de desenvolvimento não está pronta para ser exposta na internet; a automação não elimina essa etapa de preparação.
-
-O nome Compose é fixado em `wedding` para manter a identidade do volume. A primeira instalação deve usar esse mesmo nome, evitando subir um banco vazio por acidente ao mudar o nome do projeto.
-
-## Falhas e atualizações
-
-Falhas de testes impedem a chamada do deploy. Erros de SSH, build, verificações, migrations ou inicialização deixam o job vermelho no GitHub. Não há rollback automático do banco: migrations podem ter sido aplicadas antes de uma falha na inicialização. Atualizações de esquema devem ser compatíveis com a versão anterior enquanto ela estiver rodando, e a rotina de backup precisa estar pronta antes de ativar o deploy.
-
-Se uma execução falhar depois de atualizar o checkout, os containers antigos podem continuar ativos; o SHA no diretório sozinho não comprova que a nova versão está servindo. A etapa `up --wait` verifica os serviços; a definição do healthcheck HTTP e a conferência pública de HTTPS serão completadas com a configuração da VPS.
-
-Para desligar somente a publicação automática, definir `DEPLOY_ENABLED=false`. Os testes continuam rodando.
-
-## Implantação pelo painel Docker da Hostinger
-
-Use `compose.vps.yaml` como projeto independente, não como override. Ele inclui
-MySQL, inicialização das migrations e Gunicorn/WhiteNoise. O roteamento e o HTTPS
-ficam com o Traefik já existente na VPS; este projeto não inicia outro proxy.
-O painel deve suportar `service_healthy` e `service_completed_successfully`.
-
-Importe no painel o link direto do YAML:
-
-```text
-https://raw.githubusercontent.com/joselflima/wedding/main/compose.vps.yaml
-```
-
-O Compose usa um contexto Git remoto para construir a aplicação com o Dockerfile
-do repositório na própria VPS. Assim, importar apenas o YAML é suficiente para
-localizar o código; não depende de um clone ao lado do arquivo. O painel precisa
-executar builds Docker e ter acesso ao GitHub e às imagens base públicas.
-Não há imagem privada da aplicação para baixar, variável `WEB_IMAGE` ou login GHCR.
-O repositório precisa continuar acessível à VPS; torná-lo privado exigirá
-configurar autenticação Git para o build.
-
-Configure as variáveis do projeto: `DOMAIN` (somente hostname),
-`DJANGO_SECRET_KEY`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` e, opcionalmente,
-`MYSQL_DATABASE` e `MYSQL_USER`. `APP_REF` define a branch, tag ou SHA completo
-usado no build; o padrão é `main`. Para uma versão fixa, informe o SHA completo
-de um commit aprovado pelos testes. O build pelo painel não aguarda o GitHub Actions.
-Use as mesmas credenciais e o mesmo projeto `wedding` do banco existente.
-Configure também `TRAEFIK_NETWORK` com o nome da rede Docker externa já usada
-pelo Traefik e `TRAEFIK_ENTRYPOINT` com o entrypoint HTTPS (padrão `websecure`).
-Essa rede precisa existir antes da implantação e o Traefik deve estar conectado
-a ela, com o provider Docker habilitado. Apenas o serviço `web` participa dessa
-rede; o banco permanece na rede padrão do projeto.
-
-As labels definem o router `wedding` para `DOMAIN`, com TLS e destino HTTP na
-porta interna 8000. O Compose não publica portas no host. O Traefik deve encaminhar
-`X-Forwarded-Proto: https`, pois o Django exige HTTPS atrás do proxy.
-Use o certificado ou o resolver padrão já configurado no entrypoint do Traefik.
-Se sua instalação exige um resolver por router, adicione no painel a label
-`traefik.http.routers.wedding.tls.certresolver` com o nome do resolver existente.
-DNS deve apontar para a VPS; o Traefik existente continua responsável pelas portas
-80/443 e pelo redirecionamento HTTP para HTTPS. Não execute outro projeto usando
-o mesmo banco.
-
-Importe o Compose e implante pelo painel. Equivalente no terminal:
+No diretório do projeto no servidor, com as variáveis configuradas:
 
 ```sh
-docker compose -p wedding -f compose.vps.yaml up -d --build --wait
+docker compose build web
+docker compose up -d db
+docker compose run --rm web python manage.py check --deploy --fail-level WARNING
+docker compose run --rm web python manage.py migrate --noinput
+docker compose run --rm web python manage.py createsuperuser
+docker compose up -d web
 ```
 
-O serviço `init` terminar com código zero é esperado. Se falhar, consulte seus
-logs; o web fica bloqueado. Não são criadas contas automaticamente. Atualizações
-exigem reconstrução e reimplantação pelo painel; se `APP_REF` estiver fixado em
-um commit, atualize-o também. Um push no GitHub não atualiza o painel automaticamente. Não remova volumes para corrigir falhas.
-O fluxo SSH anterior continua independente e desabilitado por padrão.
+O painel pode não executar build: nesse caso, usar os comandos acima por SSH. Não iniciar web antes das migrations. Verificar certificado, redirecionamento HTTP, login/logout, CSS do Admin e /health/. O health retorna 503 se o banco falhar. O endpoint deve ser usado para monitoramento externo.
+
+HSTS inicial de 3600 segundos; os avisos de preload e inclusão de subdomínios são silenciados especificamente, por decisão explícita. Não há serviço init permanente.
+
+Antes de atualizações, salvar dump do MySQL e revisão da imagem. Reverter imagem não desfaz migrations: restaurar backup se a alteração de esquema for incompatível. Nunca remover wedding_producao_mysql_data durante atualizações.
+
+## Estado da primeira implantação
+
+A primeira versão foi transferida por SSH para /docker/wedding-release e construída como wedding-base:release, pois a revisão ainda não foi publicada no Git. O Compose operacional está em /docker/wedding/docker-compose.yml, com segredos em /docker/wedding/.env (permissão 600). Não reimporte o YAML remoto antes de publicar os arquivos atualizados e fixar APP_REF.
+
+Para criar a conta administrativa, execute em terminal interativo:
+
+```sh
+ssh -t root@177.7.40.156 'cd /docker/wedding && docker compose exec web python manage.py createsuperuser'
+```
+
+## Deploy automático da main
+
+O workflow `.github/workflows/main.yml` valida build, migrations, segurança e HTTP com MySQL em cada PR/push. Push na main e execução manual na main implantam a revisão validada por SSH. Deploys não se interrompem entre si.
+
+Secrets do GitHub: `VPS_DEPLOY_KEY` (chave exclusiva) e `VPS_KNOWN_HOSTS` (identidade verificada do servidor). A chave usa comando forçado `/usr/local/sbin/wedding-deploy`, sem shell interativo ou encaminhamento de portas. O script confiável é instalado separadamente; mudanças em `scripts/deploy-vps.sh` exigem sua atualização na VPS.
+
+O servidor mantém releases em `/docker/wedding-releases/<SHA>`, backups SQL compactados em `/docker/wedding/backups` e o SHA concluído em `/docker/wedding/deployed-revision`. Não há remoção automática de backups/imagens: revisar espaço periodicamente. O workflow preserva `.env` e volume MySQL e atualiza apenas web, sem recriar o banco.
+
+Antes de migrations, o deploy gera um dump. Se build/check/backup falhar, a aplicação atual continua. Falhas de migration ou saúde encerram o workflow com erro; não há rollback automático de esquema. A configuração anterior fica em `compose.previous.yaml`; restaurá-la exige avaliar compatibilidade com as migrations aplicadas.

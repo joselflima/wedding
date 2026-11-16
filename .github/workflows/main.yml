@@ -1,50 +1,52 @@
-name: Validate and deploy
-
+name: Validate and deploy Wedding
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
-  group: wedding-pipeline-${{ github.ref }}
+  group: wedding-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
-  test:
-    name: Django and MySQL checks
-    runs-on: ubuntu-24.04
+  validate:
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Test deployment safety boundaries
-        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Generate isolated test configuration
+      - name: Prepare local simulation
         run: python3 scripts/init_env.py
-      - name: Build application
-        run: docker compose build web
-      - name: Check configuration and migrations
+      - name: Build and verify with MySQL
         run: |
-          docker compose run --rm web python manage.py check
-          docker compose run --rm web python manage.py makemigrations --check --dry-run
-      - name: Test against MySQL
-        run: docker compose run --rm web sh -c 'MYSQL_USER=root MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test --noinput'
-      - name: Remove ephemeral test services
+          docker compose --env-file .env.local build web
+          docker compose --env-file .env.local up -d db
+          docker compose --env-file .env.local run --rm web python manage.py migrate --noinput
+          docker compose --env-file .env.local run --rm web python manage.py makemigrations --check --dry-run
+          docker compose --env-file .env.local run --rm -e DJANGO_HTTPS=true web python manage.py check --deploy --fail-level WARNING
+          docker compose --env-file .env.local run --rm -e MYSQL_USER=root web sh -c 'MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test'
+          docker compose --env-file .env.local up -d web
+          curl --fail --retry 12 --retry-all-errors --retry-delay 3 http://localhost:8000/health/
+          curl --fail http://localhost:8000/admin/login/
+          curl --fail http://localhost:8000/static/admin/css/base.css
+      - name: Clean up
         if: always()
-        run: docker compose down --volumes --remove-orphans
-
+        run: docker compose --env-file .env.local down -v
   deploy:
-    name: Deploy to Hostinger
-    needs: test
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      github.event_name != 'pull_request' &&
-      vars.DEPLOY_ENABLED == 'true'
-    uses: ./.github/workflows/deploy-vps.yml
-    secrets: inherit
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to VPS
+        env:
+          DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/wedding
+          chmod 600 ~/.ssh/wedding
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          git archive --format=tar "$GITHUB_SHA" | gzip | ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -i ~/.ssh/wedding root@177.7.40.156 "$GITHUB_SHA"

@@ -4,66 +4,48 @@ services:
     image: mysql:8.4
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-wedding}
-      MYSQL_USER: ${MYSQL_USER:-wedding}
+      MYSQL_DATABASE: wedding_producao
+      MYSQL_USER: ${MYSQL_USER:?Required}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Required}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Required}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=TCP -h 127.0.0.1 -u $$MYSQL_USER -D $$MYSQL_DATABASE -e 'SELECT 1'"]
+      test: [CMD-SHELL, 'MYSQL_PWD=$$MYSQL_PASSWORD mysql -u$$MYSQL_USER -D$$MYSQL_DATABASE -e "SELECT 1"']
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 30s
-  init:
-    build: &app_build
-      context: https://github.com/joselflima/wedding.git#${APP_REF:-main}
-      dockerfile: Dockerfile
-    pull_policy: build
-    environment: &app_env
+  web:
+    build:
+      context: https://github.com/joselflima/wedding.git#${APP_REF:?Required}
+    image: wedding-base:${APP_REF:?Required}
+    restart: unless-stopped
+    environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Required}
-      DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: ${DOMAIN:?Required},localhost
-      DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
-      DJANGO_BEHIND_PROXY: "true"
-      DJANGO_SECURE_SSL_REDIRECT: "true"
-      DJANGO_HSTS_SECONDS: "3600"
       MYSQL_HOST: db
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-wedding}
-      MYSQL_USER: ${MYSQL_USER:-wedding}
+      DJANGO_DEBUG: "false"
+      DJANGO_HTTPS: "true"
+      DJANGO_ALLOWED_HOSTS: wedding.srv1625057.hstgr.cloud,localhost
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://wedding.srv1625057.hstgr.cloud
+      MYSQL_DATABASE: wedding_producao
+      MYSQL_USER: ${MYSQL_USER:?Required}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Required}
-    command: ["sh", "-c", "python manage.py check --deploy --fail-level WARNING && python manage.py migrate --noinput"]
     depends_on:
       db:
         condition: service_healthy
-  web:
-    build: *app_build
-    pull_policy: build
-    restart: unless-stopped
-    environment: *app_env
-    depends_on:
-      init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); import django; django.setup(); from django.db import connection; connection.ensure_connection(); import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8000/', headers={'X-Forwarded-Proto':'https'}), timeout=5)"]
-      interval: 10s
-      timeout: 8s
-      retries: 12
-    networks:
-      - default
-      - traefik
+    networks: [default, traefik]
     labels:
       traefik.enable: "true"
-      traefik.docker.network: ${TRAEFIK_NETWORK:?Set existing Traefik network name}
-      traefik.http.routers.wedding.rule: Host(`${DOMAIN:?Required}`)
-      traefik.http.routers.wedding.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
-      traefik.http.routers.wedding.tls: "true"
-      traefik.http.routers.wedding.service: wedding
+      traefik.docker.network: shared_net
+      traefik.http.routers.wedding.rule: Host(`wedding.srv1625057.hstgr.cloud`)
+      traefik.http.routers.wedding.entrypoints: websecure
+      traefik.http.routers.wedding.tls.certresolver: letsencrypt
       traefik.http.services.wedding.loadbalancer.server.port: "8000"
+volumes:
+  mysql_data:
+    name: wedding_producao_mysql_data
+
 networks:
   traefik:
     external: true
-    name: ${TRAEFIK_NETWORK:?Set existing Traefik network name}
-volumes:
-  mysql_data:
+    name: shared_net
