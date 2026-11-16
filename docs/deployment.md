@@ -42,3 +42,12 @@ Secrets do GitHub: `VPS_DEPLOY_KEY` (chave exclusiva) e `VPS_KNOWN_HOSTS` (ident
 O servidor mantém releases em `/docker/wedding-releases/<SHA>`, backups SQL compactados em `/docker/wedding/backups` e o SHA concluído em `/docker/wedding/deployed-revision`. Não há remoção automática de backups/imagens: revisar espaço periodicamente. O workflow preserva `.env` e volume MySQL e atualiza apenas web, sem recriar o banco.
 
 Antes de migrations, o deploy gera um dump. Se build/check/backup falhar, a aplicação atual continua. Falhas de migration ou saúde encerram o workflow com erro; não há rollback automático de esquema. A configuração anterior fica em `compose.previous.yaml`; restaurá-la exige avaliar compatibilidade com as migrations aplicadas.
+
+### Atualização do usuário padrão para User customizado
+
+O comando `migrate` da aplicação detecta o histórico legado (`admin.0001_initial`
+aplicada sem `wedding.0001_initial`) e executa a adoção antes da verificação de
+consistência do Django. Assim, o script de deploy já instalado na VPS continua
+funcionando: seu backup ocorre antes da adoção. Não é necessário alterar o
+comando forçado de SSH. Bancos novos seguem o fluxo normal de migrations.
+Para atualizações manuais, faça backup antes de executar `migrate`.
