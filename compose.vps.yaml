@@ -17,7 +17,10 @@ services:
       retries: 30
       start_period: 30s
   init:
-    image: ${WEB_IMAGE:?Set private GHCR image reference}
+    build: &app_build
+      context: https://github.com/joselflima/wedding.git#${APP_REF:-main}
+      dockerfile: Dockerfile
+    pull_policy: build
     environment: &app_env
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Required}
       DJANGO_DEBUG: "false"
@@ -35,7 +38,8 @@ services:
       db:
         condition: service_healthy
   web:
-    image: ${WEB_IMAGE:?Required}
+    build: *app_build
+    pull_policy: build
     restart: unless-stopped
     environment: *app_env
     depends_on:
@@ -46,23 +50,20 @@ services:
       interval: 10s
       timeout: 8s
       retries: 12
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN:?Required}
-    entrypoint: ["sh", "-c"]
-    command: ['printf "%s { reverse_proxy web:8000 }\n" "$$DOMAIN" > /tmp/Caddyfile; exec caddy run --config /tmp/Caddyfile --adapter caddyfile']
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      web:
-        condition: service_healthy
+    networks:
+      - default
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Set existing Traefik network name}
+      traefik.http.routers.wedding.rule: Host(`${DOMAIN:?Required}`)
+      traefik.http.routers.wedding.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.wedding.tls: "true"
+      traefik.http.routers.wedding.service: wedding
+      traefik.http.services.wedding.loadbalancer.server.port: "8000"
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:?Set existing Traefik network name}
 volumes:
   mysql_data:
-  caddy_data:
-  caddy_config:

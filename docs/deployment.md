@@ -60,32 +60,57 @@ Se uma execução falhar depois de atualizar o checkout, os containers antigos p
 
 Para desligar somente a publicação automática, definir `DEPLOY_ENABLED=false`. Os testes continuam rodando.
 
-## Implantação pelo painel Docker da Hostinger (GHCR)
+## Implantação pelo painel Docker da Hostinger
 
 Use `compose.vps.yaml` como projeto independente, não como override. Ele inclui
-MySQL, inicialização das migrations, Gunicorn/WhiteNoise e Caddy com HTTPS.
+MySQL, inicialização das migrations e Gunicorn/WhiteNoise. O roteamento e o HTTPS
+ficam com o Traefik já existente na VPS; este projeto não inicia outro proxy.
 O painel deve suportar `service_healthy` e `service_completed_successfully`.
 
-Após os testes de main, o job `publish` publica a imagem privada
-`ghcr.io/joselflima/wedding:<SHA>` e `:latest`. Confirme no GHCR a visibilidade
-privada e o sucesso da publicação antes de implantar. Configure no painel uma
-credencial de leitura GHCR (token com `read:packages`), nunca no Compose.
+Importe no painel o link direto do YAML:
 
-Configure as variáveis do projeto: `WEB_IMAGE` (referência completa com SHA),
-`DOMAIN` (somente hostname), `DJANGO_SECRET_KEY`, `MYSQL_PASSWORD`,
-`MYSQL_ROOT_PASSWORD` e, opcionalmente, `MYSQL_DATABASE` e `MYSQL_USER`.
+```text
+https://raw.githubusercontent.com/joselflima/wedding/main/compose.vps.yaml
+```
+
+O Compose usa um contexto Git remoto para construir a aplicação com o Dockerfile
+do repositório na própria VPS. Assim, importar apenas o YAML é suficiente para
+localizar o código; não depende de um clone ao lado do arquivo. O painel precisa
+executar builds Docker e ter acesso ao GitHub e às imagens base públicas.
+Não há imagem privada da aplicação para baixar, variável `WEB_IMAGE` ou login GHCR.
+O repositório precisa continuar acessível à VPS; torná-lo privado exigirá
+configurar autenticação Git para o build.
+
+Configure as variáveis do projeto: `DOMAIN` (somente hostname),
+`DJANGO_SECRET_KEY`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD` e, opcionalmente,
+`MYSQL_DATABASE` e `MYSQL_USER`. `APP_REF` define a branch, tag ou SHA completo
+usado no build; o padrão é `main`. Para uma versão fixa, informe o SHA completo
+de um commit aprovado pelos testes. O build pelo painel não aguarda o GitHub Actions.
 Use as mesmas credenciais e o mesmo projeto `wedding` do banco existente.
-DNS deve apontar para a VPS e portas 80/443 devem estar disponíveis.
-Não execute dois projetos disputando essas portas ou o mesmo banco.
+Configure também `TRAEFIK_NETWORK` com o nome da rede Docker externa já usada
+pelo Traefik e `TRAEFIK_ENTRYPOINT` com o entrypoint HTTPS (padrão `websecure`).
+Essa rede precisa existir antes da implantação e o Traefik deve estar conectado
+a ela, com o provider Docker habilitado. Apenas o serviço `web` participa dessa
+rede; o banco permanece na rede padrão do projeto.
+
+As labels definem o router `wedding` para `DOMAIN`, com TLS e destino HTTP na
+porta interna 8000. O Compose não publica portas no host. O Traefik deve encaminhar
+`X-Forwarded-Proto: https`, pois o Django exige HTTPS atrás do proxy.
+Use o certificado ou o resolver padrão já configurado no entrypoint do Traefik.
+Se sua instalação exige um resolver por router, adicione no painel a label
+`traefik.http.routers.wedding.tls.certresolver` com o nome do resolver existente.
+DNS deve apontar para a VPS; o Traefik existente continua responsável pelas portas
+80/443 e pelo redirecionamento HTTP para HTTPS. Não execute outro projeto usando
+o mesmo banco.
 
 Importe o Compose e implante pelo painel. Equivalente no terminal:
 
 ```sh
-docker compose -p wedding -f compose.vps.yaml up -d --pull always --wait
+docker compose -p wedding -f compose.vps.yaml up -d --build --wait
 ```
 
 O serviço `init` terminar com código zero é esperado. Se falhar, consulte seus
 logs; o web fica bloqueado. Não são criadas contas automaticamente. Atualizações
-exigem nova referência de imagem e reimplantação; publicar no GHCR não atualiza
-o painel automaticamente. Não remova volumes para corrigir falhas.
+exigem reconstrução e reimplantação pelo painel; se `APP_REF` estiver fixado em
+um commit, atualize-o também. Um push no GitHub não atualiza o painel automaticamente. Não remova volumes para corrigir falhas.
 O fluxo SSH anterior continua independente e desabilitado por padrão.

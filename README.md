@@ -125,13 +125,15 @@ Pushes e pull requests para `main` executam os testes no MySQL. Depois de um pus
 
 O gatilho, o job reutilizável e o script da VPS estão separados. Consulte [docs/deployment.md](docs/deployment.md) para os secrets, variáveis e a preparação de produção ainda pendente.
 
-## Produção com imagem pronta
+## Produção pelo painel da Hostinger
 
 A imagem usa Gunicorn e WhiteNoise, com estáticos coletados no build.
 Para o painel da Hostinger, use o Compose independente `compose.vps.yaml`:
-o GitHub publica a imagem no GHCR após os testes, e a VPS baixa a imagem pronta.
-Migrations são executadas pelo serviço `init` antes do web; Caddy fornece HTTPS.
-Consulte [implantação](docs/deployment.md#implantação-pelo-painel-docker-da-hostinger-ghcr).
+ao importar o link do YAML, o Docker obtém o código do repositório e constrói
+a imagem na VPS. Não é necessário configurar `WEB_IMAGE` nem credenciais GHCR.
+Migrations são executadas pelo serviço `init` antes do web. O Traefik já existente
+na VPS fornece HTTPS e roteia para a aplicação pela rede Docker externa configurada.
+Consulte [implantação](docs/deployment.md#implantação-pelo-painel-docker-da-hostinger).
 
 
 ### Contas e autenticação
