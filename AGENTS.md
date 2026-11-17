@@ -37,6 +37,8 @@ Use quatro espaços em Python, `snake_case` para funções e variáveis e `Pasca
 
 ## Testes
 
+TDD é obrigatório para os agentes: antes de implementar ou corrigir comportamento, escreva os testes e execute-os para confirmar que falham pelo motivo esperado. Implemente o mínimo para fazê-los passar e refatore mantendo-os verdes. Antes de considerar a entrega finalizada, reconstrua a imagem com o código atual, execute toda a suíte e as verificações do CI e corrija qualquer falha, inclusive regressões. Só declare a entrega concluída quando tudo passar; se houver impedimentos à execução, informe-os e mantenha a validação pendente. Alterações exclusivamente documentais exigem revisão e `git diff --check`.
+
 Use `django.test.TestCase`, classes terminadas em `Tests` e métodos `test_*`. Cubra permissões, autenticação, restrições dos modelos e regressões. Não existe meta numérica de cobertura configurada. Execute como no CI, usando root para criar o banco temporário:
 
 ```sh
