@@ -97,6 +97,10 @@ dialog::backdrop { background: #30382065; backdrop-filter: blur(5px); }
 dialog[open] { animation: appear .2s ease-out; }
 dialog form { margin-bottom: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+#edit-participant-dialog .modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.modal-secondary-actions { display: grid; gap: 12px; margin-top: 12px; }
+.modal-secondary-actions form { margin: 0; }
+.modal-secondary-actions button { width: 100%; }
 @keyframes appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media(max-width:700px) {
   header { padding: 18px; gap: 16px; } nav { gap: 12px; font-size: 12px; }
