@@ -1,1 +1,1 @@
-<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Wedding</title><h1>Wedding</h1><p>{{ message }}</p>{% if form %}<form method="post">{% csrf_token %}{{ form.as_p }}<button>Continuar</button></form>{% endif %}</html>
+<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Wedding</title>{% include "wedding/logout.html" %}<h1>Wedding</h1><p>{{ message }}</p>{% if form %}<form method="post">{% csrf_token %}{{ form.as_p }}<button>Continuar</button></form>{% endif %}</html>
