@@ -67,6 +67,7 @@ def activate(request, pk, token):
         person.save()
         return redirect('login')
     response = render(request, 'wedding/page.html', {'form':form})
-    response['Referrer-Policy'] = 'no-referrer'
+    # Preserve same-origin Referer for HTTPS CSRF checks without leaking invitation tokens.
+    response['Referrer-Policy'] = 'same-origin'
     response['Cache-Control'] = 'no-store'
     return response
