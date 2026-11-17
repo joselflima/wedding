@@ -1,34 +1,52 @@
-# Orientações para agentes
+# Repository Guidelines
 
-Estas orientações se aplicam a todo o repositório Wedding.
+## Estrutura e organização
 
-## Contexto e prioridades
+O Wedding é uma aplicação pessoal de planejamento de casamento, com foco nos noivos, convidados e padrinhos. Usa Python 3.13, Django 5.2 e MySQL 8.4.
 
-- Preserve o propósito de aplicação pessoal para apoiar o planejamento de um único casamento, do autor com sua noiva.
-- Considere os três perfis previstos: Noivos, Convidados e Padrinhos.
-- Priorize a visão dos noivos, começando pela lista de convidados e pela lista de padrinhos.
-- Não implemente funcionalidades exclusivas de Convidados ou Padrinhos sem uma definição posterior de escopo.
+- `src/config/`: configurações, URLs e entradas WSGI/ASGI.
+- `src/wedding/`: modelos, views, Admin, migrações e comandos de gestão.
+- `src/wedding/tests.py`: testes automatizados.
+- `src/wedding/templates/` e `src/wedding/static/`: templates, CSS, JavaScript e fontes.
+- `scripts/`: preparação do ambiente e deploy; `docs/deployment.md`: operação da VPS.
+- `compose.yaml`: ambiente local; `compose.vps.yaml`: produção; `.github/workflows/main.yml`: validação e deploy.
 
-## Acesso e registros
+## Desenvolvimento e validação
 
-- Restrinja as duas listas exclusivamente aos noivos.
-- Aplique a autorização no backend Django; ocultar elementos da interface não substitui a verificação de acesso no servidor.
-- Reflita as permissões na interface.
-- Não presuma que cadastrar um convidado ou padrinho cria uma conta de acesso. A relação entre registros das listas e contas será definida posteriormente.
-- Ao implementar essas funcionalidades, teste o acesso permitido aos noivos e a rejeição de acessos sem autenticação ou com outros perfis.
+Execute na raiz, com Docker Compose v2 disponível:
 
-## Diretrizes técnicas
+```sh
+python3 scripts/init_env.py
+docker compose --env-file .env.local build web
+docker compose --env-file .env.local up -d db
+docker compose --env-file .env.local run --rm web python manage.py migrate --noinput
+docker compose --env-file .env.local up -d web
+```
 
-- Use Django para a aplicação e MySQL como banco de dados principal.
-- Mantenha a aplicação e o banco em serviços Docker separados.
-- Adote Docker Compose para a orquestração local e para a futura implantação na VPS da Hostinger.
-- Forneça configurações por variáveis de ambiente e não versione credenciais ou segredos.
-- Ao implementar persistência, use migrations do Django para alterações de esquema e armazenamento persistente para o MySQL.
+O script cria `.env.local` sem substituir um arquivo existente. O build incorpora o código na imagem; reconstrua após alterações. A aplicação fica em `http://localhost:8000/`; o Admin, em `/admin/`.
 
-## Evolução do projeto
+Verifique migrações pendentes com:
 
-- O estado inicial contém apenas documentação: funcionalidades e infraestrutura ainda são planejadas.
-- Mantenha o README.md atualizado conforme a implementação evoluir, distinguindo o que está planejado do que já existe.
-- Só documente comandos de instalação e execução quando a configuração correspondente estiver disponível.
-- Defina versões de dependências, autenticação, campos e operações das listas e detalhes de implantação nas respectivas etapas de planejamento.
-- Valide as mudanças com verificações adequadas ao escopo; para funcionalidades com controle de acesso, inclua testes das regras de autorização.
+```sh
+docker compose --env-file .env.local run --rm web python manage.py makemigrations --check --dry-run
+```
+
+## Estilo e nomenclatura
+
+Use quatro espaços em Python, `snake_case` para funções e variáveis e `PascalCase` para classes. Mantenha templates e assets no namespace `wedding`. Gere migrações pelo Django ao alterar modelos. Não há formatter ou linter configurado; siga o estilo do arquivo e evite reformatações alheias à tarefa. Escreva documentação e textos da interface em português.
+
+## Testes
+
+Use `django.test.TestCase`, classes terminadas em `Tests` e métodos `test_*`. Cubra permissões, autenticação, restrições dos modelos e regressões. Não existe meta numérica de cobertura configurada. Execute como no CI, usando root para criar o banco temporário:
+
+```sh
+docker compose --env-file .env.local run --rm -e MYSQL_USER=root web sh -c 'MYSQL_PASSWORD="$MYSQL_ROOT_PASSWORD" python manage.py test'
+```
+
+## Commits e pull requests
+
+O histórico combina descrições diretas e prefixos como `feat:`. Prefira commits pequenos com mensagens claras. Nos PRs, descreva o comportamento alterado, validações executadas, migrações necessárias e issues relacionadas; inclua capturas para mudanças visuais. Pushes na `main` disparam deploy após validação.
+
+## Segurança e dados
+
+Nunca versione segredos. Preserve o volume MySQL; `down -v` apaga dados. Valide permissões no backend. Para bancos legados, siga o procedimento de backup e adoção em `README.md` antes de migrar.
