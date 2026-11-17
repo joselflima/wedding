@@ -1,0 +1,1 @@
+{% extends "admin/base.html" %}{% load static %}{% block title %}{{ title }} | Maria Eduarda e José Lucas{% endblock %}{% block branding %}<h1 id="site-name"><a href="{% url 'admin:index' %}">Maria Eduarda & José Lucas</a></h1>{% endblock %}{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'wedding/admin.css' %}">{% endblock %}

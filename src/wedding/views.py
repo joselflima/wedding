@@ -20,11 +20,8 @@ class ParticipantForm(forms.ModelForm):
             raise forms.ValidationError('Tipo indisponível.')
         return role
 
-@login_required
 def home(request):
-    if request.user.role == 'couple':
-        return redirect('people')
-    return render(request, 'wedding/page.html', {'message': 'Bem-vindo! Novas funcionalidades estarão disponíveis em breve.'})
+    return render(request, 'wedding/home.html')
 
 @login_required
 def people(request, pk=None):
@@ -57,7 +54,7 @@ def people(request, pk=None):
     rows = rows.filter(Q(name__icontains=q) | Q(username__icontains=q))
     if request.GET.get('role'):
         rows = rows.filter(role=request.GET['role'])
-    return render(request, 'wedding/people.html', {'form':form,'rows':rows,'person':person,'link':link,'roles':User.Role.choices})
+    return render(request, 'wedding/people.html', {'create_form': ParticipantForm(auto_id='create_%s') if person else form, 'form':form,'rows':rows,'person':person,'link':link,'roles':User.Role.choices})
 
 def activate(request, pk, token):
     person = get_object_or_404(User, pk=pk, is_active=False, is_staff=False, is_superuser=False)
