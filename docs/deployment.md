@@ -21,6 +21,12 @@ O painel pode não executar build: nesse caso, usar os comandos acima por SSH. N
 
 HSTS inicial de 3600 segundos; os avisos de preload e inclusão de subdomínios são silenciados especificamente, por decisão explícita. Não há serviço init permanente.
 
+### Redefinição de senha
+
+Os noivos encontram os pedidos em **Gerenciar participantes → Pedidos de redefinição de senha**. Após confirmar a identidade por um contato conhecido, devem compartilhar o link em particular. O link vale por 24 horas e só pode ser usado uma vez. Não há envio automático por e-mail.
+
+Trate logs de acesso como dados restritos: a rota inicial `/password-reset/<id>/link/<token>/` contém a credencial de redefinição, assim como os links de ativação. O formulário é aberto em uma segunda URL, sem o token. Os limites de tentativa usam o cache local do Django, compatível com o único worker atual do Gunicorn; ao ampliar o número de workers ou réplicas, configure um cache compartilhado que ofereça incremento atômico.
+
 Antes de atualizações, salvar dump do MySQL e revisão da imagem. Reverter imagem não desfaz migrations: restaurar backup se a alteração de esquema for incompatível. Nunca remover wedding_producao_mysql_data durante atualizações.
 
 ## Estado da primeira implantação

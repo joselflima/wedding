@@ -1,14 +1,28 @@
+from urllib.parse import urlencode
+
 from django import forms
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.templatetags.static import static
-from django.views.decorators.http import require_safe
-from .models import User
+from django.views.decorators.http import require_http_methods, require_safe
+from .models import PasswordResetRequest, User
+from .password_reset import eligible_users
+
+
+def _participants_queryset():
+    return User.objects.filter(is_staff=False, is_superuser=False).exclude(role=User.Role.COUPLE)
+
+
+def _pending_resets_count():
+    return PasswordResetRequest.objects.filter(user__in=eligible_users()).count()
+
 
 class ParticipantForm(forms.ModelForm):
     class Meta:
@@ -24,7 +38,18 @@ class ParticipantForm(forms.ModelForm):
         return role
 
 def home(request):
-    return render(request, 'wedding/home.html')
+    context = {}
+    if request.user.is_authenticated and request.user.role == User.Role.COUPLE:
+        participants = _participants_queryset()
+        total = participants.count()
+        active = participants.filter(is_active=True).count()
+        context['dashboard'] = {
+            'total_participants': total,
+            'active_participants': active,
+            'pending_participants': total - active,
+            'pending_password_resets': _pending_resets_count(),
+        }
+    return render(request, 'wedding/home.html', context)
 
 
 @require_safe
@@ -72,25 +97,80 @@ def people(request, pk=None):
                 obj.set_unusable_password()
             obj.save()
             return redirect('person', pk=obj.pk)
-    rows = User.objects.filter(is_staff=False, is_superuser=False).exclude(role='couple').order_by('name')
-    q = request.GET.get('q', '')
-    rows = rows.filter(Q(name__icontains=q) | Q(username__icontains=q))
-    if request.GET.get('role'):
-        rows = rows.filter(role=request.GET['role'])
-    return render(request, 'wedding/people.html', {'create_form': ParticipantForm(auto_id='create_%s') if person else form, 'form':form,'rows':rows,'person':person,'link':link,'roles':User.Role.choices})
+    base_rows = _participants_queryset().order_by('name')
+    total_count = base_rows.count()
+    active_count = base_rows.filter(is_active=True).count()
+    pending_count = total_count - active_count
 
+    rows = base_rows
+    q = request.GET.get('q', '').strip()
+    if q:
+        rows = rows.filter(Q(name__icontains=q) | Q(username__icontains=q))
+    selected_role = request.GET.get('role', '')
+    if selected_role:
+        rows = rows.filter(role=selected_role)
+    selected_status = request.GET.get('status', '')
+    if selected_status == 'active':
+        rows = rows.filter(is_active=True)
+    elif selected_status == 'pending':
+        rows = rows.filter(is_active=False)
+    else:
+        selected_status = ''
+
+    paginator = Paginator(rows, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    query_params = {}
+    if q:
+        query_params['q'] = q
+    if selected_role:
+        query_params['role'] = selected_role
+    if selected_status:
+        query_params['status'] = selected_status
+
+    filter_roles = [(k, v) for k, v in User.Role.choices if k != User.Role.COUPLE]
+    return render(request, 'wedding/people.html', {
+        'create_form': ParticipantForm(auto_id='create_%s') if person else form,
+        'form': form,
+        'rows': page_obj,
+        'page_obj': page_obj,
+        'person': person,
+        'link': link,
+        'roles': filter_roles,
+        'total_count': total_count,
+        'active_count': active_count,
+        'pending_count': pending_count,
+        'filtered_count': paginator.count,
+        'has_filters': bool(q or selected_role or selected_status),
+        'selected_status': selected_status,
+        'selected_role': selected_role,
+        'search_query': q,
+        'pagination_query': urlencode(query_params),
+        'pending_resets_count': _pending_resets_count(),
+    })
+
+@require_http_methods(['GET', 'HEAD', 'POST'])
 def activate(request, pk, token):
-    person = get_object_or_404(User, pk=pk, is_active=False, is_staff=False, is_superuser=False)
-    if not default_token_generator.check_token(person, token):
-        return render(request, 'wedding/page.html', {'message':'Link inválido ou expirado.'}, status=400)
-    form = SetPasswordForm(person, request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        form.save()
-        person.is_active = True
-        person.save()
-        return redirect('login')
-    response = render(request, 'wedding/page.html', {'form':form})
-    # Preserve same-origin Referer for HTTPS CSRF checks without leaking invitation tokens.
-    response['Referrer-Policy'] = 'same-origin'
+    submitted = request.method == 'POST'
+    with transaction.atomic():
+        users = User.objects.filter(is_active=False, is_staff=False, is_superuser=False)
+        if submitted:
+            users = users.select_for_update()
+        person = users.filter(pk=pk).first()
+        if person is None or not default_token_generator.check_token(person, token):
+            response = render(request, 'wedding/page.html', {
+                'title': 'Convite indisponível',
+                'message': 'Este link não está mais disponível. Se você já definiu a senha, entre pelo login. Caso contrário, peça um novo convite aos noivos.',
+            }, status=400)
+        else:
+            form = SetPasswordForm(person, request.POST if submitted else None)
+            if submitted and form.is_valid():
+                form.save(commit=False)
+                person.is_active = True
+                person.save(update_fields=['password', 'is_active'])
+                response = redirect('login')
+            else:
+                response = render(request, 'wedding/page.html', {'form': form})
+    # The form needs a same-origin Referer for HTTPS CSRF checks.
+    response['Referrer-Policy'] = 'same-origin' if response.status_code == 200 else 'no-referrer'
     response['Cache-Control'] = 'no-store'
     return response

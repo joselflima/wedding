@@ -1,4 +1,40 @@
-{% load static %}<!doctype html><html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Maria Eduarda e José Lucas{% endblock %}</title><meta name="theme-color" content="#59633a">
-<link rel="manifest" href="{% url 'manifest' %}">
-<link rel="apple-touch-icon" href="{% static 'wedding/icon-180.png' %}">
-<link rel="stylesheet" href="{% static 'wedding/style.css' %}"></head><body><header><a class="brand" href="/">M <span>&</span> J</a><nav>{% if request.user.is_authenticated %}{% if request.user.role == 'couple' %}<a href="{% url 'people' %}">Gerenciar participantes</a>{% endif %}{% include 'wedding/logout.html' %}{% else %}<a class="button outline" href="{% url 'login' %}">Entrar</a>{% endif %}</nav></header><main>{% block content %}{% endblock %}</main><footer>MARIA EDUARDA & JOSÉ LUCAS · NOSSO CASAMENTO</footer></body></html>
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Maria Eduarda e José Lucas{% endblock %}</title>
+  <meta name="theme-color" content="#f3e7d3">
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link rel="apple-touch-icon" href="{% static 'wedding/icon-180.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{% static 'wedding/style.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="Início — Maria Eduarda e José Lucas">M <span>&amp;</span> J</a>
+      {% if request.user.is_authenticated %}
+      <nav class="site-nav" aria-label="Navegação principal">
+        {% if request.user.role == 'couple' %}
+          <a class="nav-link" href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Início</a>
+          <a class="nav-link" href="{% url 'people' %}"{% if request.resolver_match.url_name == 'people' or request.resolver_match.url_name == 'person' %} aria-current="page"{% endif %}>Participantes</a>
+          <a class="nav-link" href="{% url 'password_reset_panel' %}"{% if request.resolver_match.url_name == 'password_reset_panel' or request.resolver_match.url_name == 'password_reset_issue' %} aria-current="page"{% endif %}>Redefinições</a>
+        {% endif %}
+        {% include 'wedding/logout.html' %}
+      </nav>
+      {% elif request.path != '/' and request.resolver_match.url_name != 'login' %}
+      <nav class="site-nav" aria-label="Navegação principal">
+        <a class="button outline button-sm" href="{% url 'login' %}">Entrar</a>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+  <main id="conteudo">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">MARIA EDUARDA &amp; JOSÉ LUCAS · NOSSO CASAMENTO</footer>
+</body>
+</html>

@@ -37,3 +37,10 @@ class User(AbstractUser):
 
     def get_full_name(self):
         return self.name
+
+
+class PasswordResetRequest(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    issued_at = models.DateTimeField(null=True)
+    token_digest = models.CharField(max_length=64, blank=True)

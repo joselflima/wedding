@@ -1,33 +1,61 @@
 {% extends 'wedding/base.html' %}
 {% load static %}
 {% block content %}
-<section class="card narrow">
-  <p class="eyebrow">MARIA EDUARDA & JOSÉ LUCAS</p>
-  <h1>{% if request.resolver_match.url_name == 'login' %}Bem-vindo ao nosso casamento{% else %}Seu acesso{% endif %}</h1>
-  {% if message %}<p>{{ message }}</p>{% endif %}
-  {% if form %}
-  <form method="post">
-    {% csrf_token %}
+<div class="auth-shell">
+  <section class="card narrow auth-card">
+    <p class="eyebrow">MARIA EDUARDA &amp; JOSÉ LUCAS</p>
+    <h1>{% if request.resolver_match.url_name == 'login' %}Bem-vindo ao nosso casamento{% else %}{{ title|default:'Crie sua senha' }}{% endif %}</h1>
+
     {% if request.resolver_match.url_name == 'login' %}
-    {{ form.non_field_errors }}
-    {{ form.username.errors }}
-    <p>{{ form.username.label_tag }}{{ form.username }}</p>
-    {{ form.password.errors }}
-    <p>
-      {{ form.password.label_tag }}
-      <span class="password-field">
-        {{ form.password }}
-        <button type="button" class="password-toggle" data-password-toggle aria-controls="{{ form.password.id_for_label }}" aria-label="Mostrar senha" hidden>
-          <span class="password-eye" aria-hidden="true"></span>
-        </button>
-      </span>
-    </p>
-    <script src="{% static 'wedding/login.js' %}" defer></script>
-    {% else %}
-    {{ form.as_p }}
+      <p class="section-description">Entre com seu usuário e senha para acessar o espaço do casamento.</p>
+    {% elif request.resolver_match.url_name == 'password_reset_request' %}
+      <p class="section-description">Informe seu nickname para enviar um pedido de novo link aos noivos.</p>
+    {% elif request.resolver_match.url_name == 'activate' and form %}
+      <p class="section-description">Defina uma senha pessoal para ativar seu convite e acessar o site.</p>
+    {% elif request.resolver_match.url_name == 'password_reset_confirm' and form %}
+      <p class="section-description">Escolha uma nova senha para concluir a recuperação da sua conta.</p>
     {% endif %}
-    <button type="submit">Continuar</button>
-  </form>
-  {% endif %}
-</section>
+
+    {% if message %}
+    <div class="callout {% if request.resolver_match.url_name == 'password_reset_requested' %}callout-success{% else %}callout-warning{% endif %}" role="status">
+      <p>{{ message }}</p>
+    </div>
+    {% endif %}
+
+    {% if form %}
+    <form method="post" class="auth-form">
+      {% csrf_token %}
+      {% if request.resolver_match.url_name == 'login' %}
+      {{ form.non_field_errors }}
+      {{ form.username.errors }}
+      <p>{{ form.username.label_tag }}{{ form.username }}</p>
+      {{ form.password.errors }}
+      <p>
+        {{ form.password.label_tag }}
+        <span class="password-field">
+          {{ form.password }}
+          <button type="button" class="password-toggle" data-password-toggle aria-controls="{{ form.password.id_for_label }}" aria-label="Mostrar senha" hidden><span class="password-eye" aria-hidden="true"></span></button>
+        </span>
+      </p>
+      <script src="{% static 'wedding/login.js' %}" defer></script>
+      {% else %}
+      <div class="form-fields">
+        {{ form.as_p }}
+      </div>
+      {% endif %}
+      <button type="submit" class="button-block">{% if request.resolver_match.url_name == 'login' %}Entrar{% elif request.resolver_match.url_name == 'password_reset_request' %}Enviar pedido{% else %}Continuar{% endif %}</button>
+    </form>
+    {% endif %}
+
+    {% if request.resolver_match.url_name == 'login' %}
+    <div class="auth-footer">
+      <a href="{% url 'password_reset_request' %}">Esqueci minha senha</a>
+    </div>
+    {% elif title %}
+    <div class="auth-footer">
+      <a href="{% url 'login' %}">Voltar para o login</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

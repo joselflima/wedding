@@ -1,16 +1,192 @@
-{% extends 'wedding/base.html' %}{% load static %}{% block content %}<section class="card"><div class="participants-heading"><div><p class="eyebrow">NOSSA LISTA</p><h1>Participantes</h1><p class="section-description">As pessoas que vão celebrar esse dia com a gente.</p></div><button type="button" id="add-participant">Adicionar convidado</button></div>
-<form method="get" class="filters"><div><label for="participant-search">Buscar participante</label><input id="participant-search" name="q" value="{{ request.GET.q }}" placeholder="Nome ou usuário"></div><div><label for="participant-role">Tipo de participante</label><select id="participant-role" name="role"><option value="">Todos os tipos</option>{% for key,label in roles %}<option value="{{ key }}" {% if request.GET.role == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button class="outline">Buscar</button></form>
-<div class="table-scroll"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Telefone</th><th>Tipo</th><th>Ativação</th></tr></thead><tbody>{% for row in rows %}<tr><td><a href="/people/{{ row.pk }}/">{{ row.name }}</a></td><td>{{ row.username }}</td><td>{{ row.phone|default:'—' }}</td><td>{{ row.get_role_display }}</td><td><span class="status {% if row.is_active %}active{% endif %}">{{ row.is_active|yesno:'Ativa,Pendente' }}</span></td></tr>{% empty %}<tr><td colspan="5" class="empty-state">Nenhum participante encontrado.</td></tr>{% endfor %}</tbody></table></div>
-<dialog id="participant-dialog" aria-labelledby="participant-title" {% if not person and form.errors %}data-invalid="true"{% endif %}>
-<div class="participants-heading"><h2 id="participant-title">Adicionar convidado</h2><button type="button" class="outline" id="close-participant" aria-label="Fechar cadastro">Fechar</button></div>
-<form method="post" action="{% url 'people' %}">{% csrf_token %}{{ create_form.as_p }}<div class="modal-actions"><button type="button" class="outline" id="cancel-participant">Cancelar</button><button type="submit">Salvar convidado</button></div></form>
-</dialog><script src="{% static 'wedding/people.js' %}" defer></script>
-{% if person %}
-<dialog id="edit-participant-dialog" aria-labelledby="edit-participant-title">
-<div class="participants-heading"><div><p class="eyebrow">NOSSA LISTA</p><h2 id="edit-participant-title">Editar convidado</h2></div><button type="button" class="outline" data-close-edit>Fechar</button></div>
-<form method="post" action="{% url 'person' person.pk %}">{% csrf_token %}{{ form.as_p }}<div class="modal-actions"><button type="button" class="outline" data-close-edit>Cancelar</button><button type="submit">Salvar alterações</button></div></form>
-<div class="modal-secondary-actions"><form method="post" action="{% url 'person' person.pk %}">{% csrf_token %}<button class="outline" name="action" value="link">Gerar novo link de acesso</button></form><form method="post" action="{% url 'person' person.pk %}" onsubmit="return confirm('Excluir definitivamente esta conta?')">{% csrf_token %}<button class="danger" name="action" value="delete">Excluir definitivamente</button></form></div>
-{% if link %}<p>Copie e compartilhe este link (válido por 72 horas):</p><input readonly value="{{ link }}" size="100">{% endif %}
-</dialog>
-{% endif %}
-</section>{% endblock %}
+{% extends 'wedding/base.html' %}
+{% load static %}
+{% block content %}
+<nav class="section-tabs" aria-label="Gestão do casamento">
+  <a class="tab-link" href="{% url 'people' %}" aria-current="page">
+    <span>Participantes</span>
+    <span class="tab-count">{{ total_count }}</span>
+  </a>
+  <a class="tab-link" href="{% url 'password_reset_panel' %}">
+    <span>Pedidos de redefinição de senha</span>
+    {% if pending_resets_count %}
+    <span class="tab-count tab-count-alert">{{ pending_resets_count }}</span>
+    {% endif %}
+  </a>
+</nav>
+
+<section class="card management-card">
+  <div class="participants-heading">
+    <div>
+      <p class="eyebrow">NOSSA LISTA</p>
+      <h1>Participantes</h1>
+      <p class="section-description">As pessoas que vão celebrar esse dia com a gente.</p>
+    </div>
+    <button type="button" id="add-participant">+ Adicionar convidado</button>
+  </div>
+
+  <div class="summary-chips" aria-label="Atalhos por status">
+    <a class="summary-chip {% if not selected_status %}is-selected{% endif %}" href="{% url 'people' %}">
+      <span>Todos</span>
+      <strong>{{ total_count }}</strong>
+    </a>
+    <a class="summary-chip {% if selected_status == 'active' %}is-selected{% endif %}" href="?status=active{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}{% if selected_role %}&amp;role={{ selected_role|urlencode }}{% endif %}">
+      <span>Ativas</span>
+      <strong>{{ active_count }}</strong>
+    </a>
+    <a class="summary-chip {% if selected_status == 'pending' %}is-selected{% endif %}" href="?status=pending{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}{% if selected_role %}&amp;role={{ selected_role|urlencode }}{% endif %}">
+      <span>Pendentes</span>
+      <strong>{{ pending_count }}</strong>
+    </a>
+  </div>
+
+  <form method="get" class="filters">
+    <div>
+      <label for="participant-search">Buscar participante</label>
+      <input id="participant-search" name="q" value="{{ search_query }}" placeholder="Nome ou usuário">
+    </div>
+    <div>
+      <label for="participant-role">Tipo de participante</label>
+      <select id="participant-role" name="role">
+        <option value="">Todos os tipos</option>
+        {% for key, label in roles %}
+        <option value="{{ key }}" {% if selected_role == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="participant-status">Status de ativação</label>
+      <select id="participant-status" name="status">
+        <option value="">Todos os status</option>
+        <option value="active" {% if selected_status == 'active' %}selected{% endif %}>Ativa</option>
+        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pendente</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="outline">Filtrar</button>
+      {% if has_filters %}
+      <a class="button ghost" href="{% url 'people' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <p class="results-meta">{% if filtered_count %}Exibindo {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ filtered_count }} participante{{ filtered_count|pluralize }}{% else %}Exibindo 0 de {{ total_count }} participante{{ total_count|pluralize }}{% endif %}</p>
+
+  <div class="table-scroll">
+    <table class="responsive-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Usuário</th>
+          <th>Telefone</th>
+          <th>Tipo</th>
+          <th>Ativação</th>
+          <th><span class="sr-only">Ações</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td data-label="Nome" class="cell-primary">
+            <span class="avatar" aria-hidden="true">{{ row.name|slice:":1"|upper }}</span>
+            <a href="/people/{{ row.pk }}/">{{ row.name }}</a>
+          </td>
+          <td data-label="Usuário" class="cell-mono">@{{ row.username }}</td>
+          <td data-label="Telefone">{{ row.phone|default:'—' }}</td>
+          <td data-label="Tipo"><span class="role-badge">{{ row.get_role_display }}</span></td>
+          <td data-label="Ativação"><span class="status {% if row.is_active %}active{% endif %}">{{ row.is_active|yesno:'Ativa,Pendente' }}</span></td>
+          <td data-label="Ação" class="cell-action"><a class="button outline button-sm" href="/people/{{ row.pk }}/">Editar</a></td>
+        </tr>
+        {% empty %}
+        <tr class="empty-row">
+          <td colspan="6" class="empty-state">Nenhum participante encontrado.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Paginação de participantes">
+    {% if page_obj.has_previous %}
+    <a class="button outline button-sm" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+    {% else %}
+    <span class="button outline button-sm is-disabled" aria-disabled="true">Anterior</span>
+    {% endif %}
+    <span class="pagination-info">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a class="button outline button-sm" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+    {% else %}
+    <span class="button outline button-sm is-disabled" aria-disabled="true">Próxima</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <dialog id="participant-dialog" aria-labelledby="participant-title" {% if not person and form.errors %}data-invalid="true"{% endif %}>
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">NOSSA LISTA</p>
+        <h2 id="participant-title">Adicionar convidado</h2>
+      </div>
+      <button type="button" class="outline button-sm" id="close-participant" aria-label="Fechar cadastro">Fechar</button>
+    </div>
+    <form method="post" action="{% url 'people' %}">
+      {% csrf_token %}
+      <div class="form-fields">
+        {{ create_form.as_p }}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="outline" id="cancel-participant">Cancelar</button>
+        <button type="submit">Salvar convidado</button>
+      </div>
+    </form>
+  </dialog>
+
+  {% if person %}
+  <dialog id="edit-participant-dialog" aria-labelledby="edit-participant-title">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">NOSSA LISTA</p>
+        <h2 id="edit-participant-title">Editar convidado</h2>
+      </div>
+      <button type="button" class="outline button-sm" data-close-edit>Fechar</button>
+    </div>
+
+    {% if link %}
+    <div class="callout callout-success copy-callout">
+      <p><label for="activation-link">Copie e compartilhe este link (válido por 72 horas):</label></p>
+      <div class="copy-box">
+        <input id="activation-link" type="text" readonly value="{{ link }}" data-select-on-click>
+        <button type="button" class="button-sm" data-copy-target="#activation-link">Copiar link</button>
+      </div>
+      <span class="sr-only" aria-live="polite" data-copy-feedback></span>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'person' person.pk %}">
+      {% csrf_token %}
+      <div class="form-fields">
+        {{ form.as_p }}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="outline" data-close-edit>Cancelar</button>
+        <button type="submit">Salvar alterações</button>
+      </div>
+    </form>
+
+    <div class="modal-secondary-actions">
+      <form method="post" action="{% url 'person' person.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="outline" name="action" value="link">Gerar novo link de acesso</button>
+      </form>
+      <form method="post" action="{% url 'person' person.pk %}" onsubmit="return confirm('Excluir definitivamente esta conta?')">
+        {% csrf_token %}
+        <button type="submit" class="danger" name="action" value="delete">Excluir definitivamente</button>
+      </form>
+    </div>
+  </dialog>
+  {% endif %}
+</section>
+
+<script src="{% static 'wedding/people.js' %}" defer></script>
+<script src="{% static 'wedding/copy.js' %}" defer></script>
+{% endblock %}
