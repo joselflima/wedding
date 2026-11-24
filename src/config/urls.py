@@ -19,3 +19,4 @@ urlpatterns = [path("", RedirectView.as_view(url="/admin/")), path("health/", he
 from django.contrib.auth.views import LoginView, LogoutView
 from wedding import views
 urlpatterns = [path('', views.home), path('login/', LoginView.as_view(template_name='wedding/page.html'), name='login'), path('logout/', LogoutView.as_view(next_page='login'), name='logout'), path('people/', views.people, name='people'), path('people/<int:pk>/', views.people, name='person'), path('activate/<int:pk>/<str:token>/', views.activate, name='activate')] + urlpatterns[1:]
+urlpatterns += [path('manifest.webmanifest', views.manifest, name='manifest')]

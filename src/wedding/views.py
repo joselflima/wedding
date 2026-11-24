@@ -4,7 +4,10 @@ from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.templatetags.static import static
+from django.views.decorators.http import require_safe
 from .models import User
 
 class ParticipantForm(forms.ModelForm):
@@ -22,6 +25,26 @@ class ParticipantForm(forms.ModelForm):
 
 def home(request):
     return render(request, 'wedding/home.html')
+
+
+@require_safe
+def manifest(request):
+    return JsonResponse({
+        'id': '/',
+        'name': 'Maria Eduarda e José Lucas',
+        'short_name': 'M&J',
+        'lang': 'pt-BR',
+        'start_url': '/',
+        'scope': '/',
+        'display': 'standalone',
+        'theme_color': '#59633a',
+        'background_color': '#f3e7d3',
+        'icons': [
+            {'src': static(f'wedding/icon-{size}.png'), 'sizes': f'{size}x{size}', 'type': 'image/png'}
+            for size in (192, 512)
+        ],
+    }, content_type='application/manifest+json')
+
 
 @login_required
 def people(request, pk=None):

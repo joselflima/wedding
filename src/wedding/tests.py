@@ -1,6 +1,8 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from django.contrib.staticfiles import finders
 from django.db import IntegrityError, transaction
+from django.templatetags.static import static
 
 class AccountsTests(TestCase):
     def test_two_slots(self):
@@ -105,3 +107,40 @@ class HomeTests(TestCase):
                     self.assertNotContains(response, message)
                 else:
                     self.assertContains(response, message)
+
+
+class InstallationTests(TestCase):
+    def test_public_home_offers_installation(self):
+        response = self.client.get('/')
+        self.assertContains(response, 'Adicionar à tela de início')
+        self.assertContains(response, 'Compartilhar')
+        self.assertContains(response, 'rel="manifest" href="/manifest.webmanifest"')
+        self.assertContains(response, f'rel="apple-touch-icon" href="{static("wedding/icon-180.png")}"')
+        self.assertIsNotNone(finders.find('wedding/icon-180.png'))
+
+    def test_authenticated_home_offers_installation_for_each_role(self):
+        for role, _ in get_user_model().Role.choices:
+            with self.subTest(role=role):
+                user = get_user_model().objects.create_user(
+                    username=role, name='Teste', role=role,
+                    couple_slot=1 if role == 'couple' else None,
+                )
+                self.client.force_login(user)
+                self.assertContains(self.client.get('/'), 'Adicionar à tela de início')
+
+    def test_manifest_describes_installation_from_home(self):
+        response = self.client.get('/manifest.webmanifest')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/manifest+json')
+        manifest = response.json()
+        self.assertEqual(manifest['name'], 'Maria Eduarda e José Lucas')
+        self.assertEqual(manifest['short_name'], 'M&J')
+        self.assertEqual(manifest['start_url'], '/')
+        self.assertEqual(manifest['scope'], '/')
+        self.assertEqual(manifest['display'], 'standalone')
+        for size in (192, 512):
+            filename = f'wedding/icon-{size}.png'
+            self.assertIn({
+                'src': static(filename), 'sizes': f'{size}x{size}', 'type': 'image/png',
+            }, manifest['icons'])
+            self.assertIsNotNone(finders.find(filename))
