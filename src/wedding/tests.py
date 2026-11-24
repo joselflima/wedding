@@ -55,6 +55,23 @@ class LogoutTests(TestCase):
         client.force_login(user)
         self.assertEqual(client.post('/logout/').status_code, 403)
 
+
+class LoginTests(TestCase):
+    def test_password_field_has_an_icon_toggle_with_password_hidden(self):
+        response = self.client.get('/login/')
+        self.assertContains(response, 'type="password"')
+        self.assertContains(response, 'autocomplete="current-password"')
+        self.assertContains(response, 'class="password-field"')
+        self.assertContains(
+            response,
+            '<button type="button" class="password-toggle" data-password-toggle '
+            'aria-controls="id_password" aria-label="Mostrar senha" hidden>'
+            '<span class="password-eye" aria-hidden="true"></span></button>',
+            html=True,
+        )
+        self.assertContains(response, f'src="{static("wedding/login.js")}"')
+
+
 class ActivationTests(TestCase):
     def test_https_activation_with_csrf_and_status_update(self):
         from django.test import Client
@@ -66,6 +83,7 @@ class ActivationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Referrer-Policy'], 'same-origin')
         self.assertEqual(response['Cache-Control'], 'no-store')
+        self.assertNotContains(response, 'data-password-toggle')
         response = client.post(url, {'new_password1': 'UniqueWedding!9827', 'new_password2': 'UniqueWedding!9827', 'csrfmiddlewaretoken': client.cookies['csrftoken'].value}, secure=True, HTTP_REFERER='https://testserver' + url)
         self.assertRedirects(response, '/login/', fetch_redirect_response=False)
         user.refresh_from_db()

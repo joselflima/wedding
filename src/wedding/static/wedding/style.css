@@ -106,6 +106,29 @@ input, select {
 }
 input:hover, select:hover { border-color: #59633a55; }
 input:focus, select:focus { border-color: var(--olive); background: #fff; box-shadow: 0 0 0 3px #59633a0c; }
+.password-field { display: block; position: relative; }
+.password-field input { padding-inline-end: 54px; }
+.password-field input:has(+ .password-toggle:not([hidden]))::-ms-reveal { display: none; }
+.password-toggle {
+  position: absolute; inset-block: 1px; inset-inline-end: 1px;
+  width: 44px; min-height: 44px; padding: 0; border-radius: 11px;
+  color: var(--olive); background: transparent; box-shadow: none;
+}
+.password-toggle[hidden] { display: none; }
+.password-toggle:hover { background: #59633a0c; box-shadow: none; transform: none; }
+.password-toggle:focus-visible { outline-offset: -3px; }
+.password-eye {
+  display: grid; place-items: center;
+  width: 15px; height: 15px; border: 1.5px solid currentColor;
+  border-radius: 70% 0; transform: rotate(45deg);
+}
+.password-eye::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+}
+.password-field input[type="text"] + .password-toggle::after {
+  content: ''; position: absolute; width: 23px; height: 2px;
+  background: currentColor; box-shadow: 0 0 0 1px #fffefb; transform: rotate(-45deg);
+}
 input::placeholder { color: #797b6c; }
 input[readonly] { background: #f5f2e9; }
 input[type=checkbox], input[type=radio] { width: auto; min-height: auto; accent-color: var(--olive); }
@@ -143,7 +166,12 @@ dialog form { margin-bottom: 0; }
 .modal-secondary-actions button { width: 100%; }
 @keyframes appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media(max-width:700px) {
-  header { padding: 18px; gap: 16px; flex-wrap: wrap; }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(to bottom, #fffaf1, #f9f0e1 52%, #f3e7d3) no-repeat #f3e7d3;
+  }
+  header { padding: 18px; gap: 16px; flex-wrap: wrap; border-bottom-color: transparent; }
   nav { gap: 12px; font-size: 12px; flex-wrap: wrap; max-width: 100%; }
   nav > a { min-height: 44px; display: inline-flex; align-items: center; }
   .button, button { padding: 11px 17px; } main { padding: 24px 14px; }

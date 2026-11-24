@@ -1,1 +1,33 @@
-{% extends 'wedding/base.html' %}{% block content %}<section class="card narrow"><p class="eyebrow">MARIA EDUARDA & JOSÉ LUCAS</p><h1>{% if request.resolver_match.url_name == 'login' %}Bem-vindo ao nosso casamento{% else %}Seu acesso{% endif %}</h1>{% if message %}<p>{{ message }}</p>{% endif %}{% if form %}<form method="post">{% csrf_token %}{{ form.as_p }}<button type="submit">Continuar</button></form>{% endif %}</section>{% endblock %}
+{% extends 'wedding/base.html' %}
+{% load static %}
+{% block content %}
+<section class="card narrow">
+  <p class="eyebrow">MARIA EDUARDA & JOSÉ LUCAS</p>
+  <h1>{% if request.resolver_match.url_name == 'login' %}Bem-vindo ao nosso casamento{% else %}Seu acesso{% endif %}</h1>
+  {% if message %}<p>{{ message }}</p>{% endif %}
+  {% if form %}
+  <form method="post">
+    {% csrf_token %}
+    {% if request.resolver_match.url_name == 'login' %}
+    {{ form.non_field_errors }}
+    {{ form.username.errors }}
+    <p>{{ form.username.label_tag }}{{ form.username }}</p>
+    {{ form.password.errors }}
+    <p>
+      {{ form.password.label_tag }}
+      <span class="password-field">
+        {{ form.password }}
+        <button type="button" class="password-toggle" data-password-toggle aria-controls="{{ form.password.id_for_label }}" aria-label="Mostrar senha" hidden>
+          <span class="password-eye" aria-hidden="true"></span>
+        </button>
+      </span>
+    </p>
+    <script src="{% static 'wedding/login.js' %}" defer></script>
+    {% else %}
+    {{ form.as_p }}
+    {% endif %}
+    <button type="submit">Continuar</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
