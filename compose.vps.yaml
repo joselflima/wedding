@@ -25,8 +25,8 @@ services:
       MYSQL_HOST: db
       DJANGO_DEBUG: "false"
       DJANGO_HTTPS: "true"
-      DJANGO_ALLOWED_HOSTS: wedding.srv1625057.hstgr.cloud,localhost
-      DJANGO_CSRF_TRUSTED_ORIGINS: https://wedding.srv1625057.hstgr.cloud
+      DJANGO_ALLOWED_HOSTS: dudaejose.com.br,www.dudaejose.com.br,wedding.srv1625057.hstgr.cloud,localhost
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://dudaejose.com.br,https://www.dudaejose.com.br,https://wedding.srv1625057.hstgr.cloud
       MYSQL_DATABASE: wedding_producao
       MYSQL_USER: ${MYSQL_USER:?Required}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Required}
@@ -37,7 +37,7 @@ services:
     labels:
       traefik.enable: "true"
       traefik.docker.network: shared_net
-      traefik.http.routers.wedding.rule: Host(`wedding.srv1625057.hstgr.cloud`)
+      traefik.http.routers.wedding.rule: 'Host(`dudaejose.com.br`) || Host(`www.dudaejose.com.br`) || Host(`wedding.srv1625057.hstgr.cloud`)'
       traefik.http.routers.wedding.entrypoints: websecure
       traefik.http.routers.wedding.tls.certresolver: letsencrypt
       traefik.http.services.wedding.loadbalancer.server.port: "8000"

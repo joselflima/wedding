@@ -1,6 +1,6 @@
 # Produção na Hostinger
 
-VPS 1625057; domínio wedding.srv1625057.hstgr.cloud. Apenas produção na VPS, banco wedding_producao. O banco local é independente e recebe as mesmas migrations.
+O Wedding roda em produção na VPS 1625057 e atende `dudaejose.com.br`, `www.dudaejose.com.br` e `wedding.srv1625057.hstgr.cloud`. O banco local é independente do banco `wedding_producao` e recebe as mesmas migrations.
 
 Importe compose.vps.yaml de uma revisão Git publicada e fixe APP_REF nessa revisão. Configure no painel DJANGO_SECRET_KEY (aleatório, 64 bytes), MYSQL_USER, MYSQL_PASSWORD e MYSQL_ROOT_PASSWORD. Não reutilize segredos antigos. A rede shared_net deve existir e ser alcançável pelo Traefik em rede host.
 
@@ -36,6 +36,8 @@ ssh -t root@177.7.40.156 'cd /docker/wedding && docker compose exec web python m
 ## Deploy automático da main
 
 O workflow `.github/workflows/main.yml` valida build, migrations, segurança e HTTP com MySQL em cada PR/push. Push na main e execução manual na main implantam a revisão validada por SSH. Deploys não se interrompem entre si.
+
+Cada deploy gera o Compose da VPS a partir de `compose.vps.yaml`. Atualize nesse arquivo a regra do Traefik, os hosts permitidos e as origens CSRF do Django ao adicionar um domínio.
 
 Secrets do GitHub: `VPS_DEPLOY_KEY` (chave exclusiva) e `VPS_KNOWN_HOSTS` (identidade verificada do servidor). A chave usa comando forçado `/usr/local/sbin/wedding-deploy`, sem shell interativo ou encaminhamento de portas. O script confiável é instalado separadamente; mudanças em `scripts/deploy-vps.sh` exigem sua atualização na VPS.
 
